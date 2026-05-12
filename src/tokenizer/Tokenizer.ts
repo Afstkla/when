@@ -84,8 +84,10 @@ export class Tokenizer {
   }
 
   /**
-   * Cleans whitespace, punctuation, and applies a few structural rewrites
-   * (idioms that don't fit the vocabulary map cleanly).
+   * Cleans whitespace and punctuation, applies the locale's rewrites, then
+   * strips articles. Article removal runs last so multi-word idioms that
+   * contain an article ("the day after tomorrow") still resolve via the
+   * vocabulary map.
    */
   normalize(input: string): string {
     let s = input
@@ -94,18 +96,10 @@ export class Tokenizer {
       .replace(/\s+/g, ' ')
       .trim();
 
-    s = s.replace(/\bprior to\b/g, 'before');
-    s = s.replace(/\bin the future\b/g, '');
-    // "from now"/"from today" as a suffix marker, unless followed by a connective
-    // (in which case "from X to Y" is a range, not a relative-forward).
-    s = s.replace(
-      /\b(?:from|since)\s+(now|today)\b(?!\s+(?:to|through|thru|until|til|till))/g,
-      '__forward__',
-    );
-    s = s.replace(/\bfrom\s+(now|today)\b/g, '$1');
+    for (const [pattern, replacement] of this.vocabulary.rewrites) {
+      s = s.replace(pattern, replacement);
+    }
 
-    // Strip articles last, so multi-word idioms (e.g. "the day after tomorrow")
-    // that contain articles still resolve via the vocabulary.
     if (this.vocabulary.articles.size > 0) {
       const pattern = new RegExp(
         `\\b(?:${Array.from(this.vocabulary.articles).join('|')})\\b`,

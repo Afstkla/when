@@ -88,4 +88,5 @@ export type {
 export { Result } from './types.js';
 // — vocabulary —
 export { English } from './vocabulary/en.js';
+export { Dutch } from './vocabulary/nl.js';
 export type { TokenSpec, Vocabulary } from './vocabulary/Vocabulary.js';

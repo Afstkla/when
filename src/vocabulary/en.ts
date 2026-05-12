@@ -332,10 +332,21 @@ function buildPhrases(): Map<string, TokenSpec> {
   return map;
 }
 
+const REWRITES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bprior to\b/g, 'before'],
+  [/\bin the future\b/g, ''],
+  // "from now"/"from today" as a suffix marker, unless followed by a connective
+  // (in which case "from X to Y" is a range, not a relative-forward).
+  [/\b(?:from|since)\s+(now|today)\b(?!\s+(?:to|through|thru|until|til|till))/g, '__forward__'],
+  // Remaining "from now/today" before a connective → drop the "from", keep the anchor
+  [/\bfrom\s+(now|today)\b/g, '$1'],
+];
+
 export const English: Vocabulary = {
   id: 'en',
   dateFormat: 'us',
   ordinalSuffix: /^(\d+)(st|nd|rd|th)$/,
   articles: new Set(['the']),
+  rewrites: REWRITES,
   phrases: buildPhrases(),
 };

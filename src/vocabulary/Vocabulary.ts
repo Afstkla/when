@@ -62,6 +62,12 @@ export interface Vocabulary {
   readonly dateFormat: 'us' | 'eu' | 'iso';
   /** Ordinal-suffix regex — anchored, matches the trailing letters of "1st", "2nd", etc. */
   readonly ordinalSuffix: RegExp;
+  /**
+   * Locale-specific pre-tokenization rewrites, applied in order. Used for
+   * idioms that don't fit the phrase map (e.g. `from now` → `__forward__`
+   * sentinel, `prior to` → `before` alias).
+   */
+  readonly rewrites: ReadonlyArray<readonly [RegExp, string]>;
   /** Human-readable name of the locale (used in tooling, never user-facing logic). */
   readonly id: string;
 }
