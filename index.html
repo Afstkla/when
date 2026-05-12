@@ -209,7 +209,7 @@
 
   .dow {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: 28px repeat(7, 1fr);
     margin-bottom: 4px;
   }
   .dow span {
@@ -220,10 +220,31 @@
     color: var(--muted);
     text-align: center;
   }
+  .dow .w-head {
+    text-align: right;
+    padding-right: 6px;
+    letter-spacing: 0;
+    font-size: 8px;
+  }
   .grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: 28px repeat(7, 1fr);
     gap: 1px;
+  }
+  .week-num {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0;
+    color: var(--muted);
+    user-select: none;
+  }
+  .week-num.current {
+    color: var(--accent);
+    font-weight: 500;
   }
 
   /* Gap (elided months between range endpoints) — horizontal divider */
@@ -512,6 +533,28 @@ const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate()
 
 function diffDays(a,b){ return Math.round((startOfDay(b) - startOfDay(a))/86400000); }
 
+// ISO 8601 week number (Mon-based, week 1 contains Jan 4)
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dow = (t.getUTCDay() + 6) % 7;
+  t.setUTCDate(t.getUTCDate() - dow + 3); // shift to Thursday of this week
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((t - yearStart) / 86400000 - 3 + ((yearStart.getUTCDay() + 6) % 7)) / 7);
+}
+function weekStartOfYear(year, n) {
+  const jan4 = new Date(year, 0, 4);
+  const dow = (jan4.getDay() + 6) % 7;
+  const week1Mon = addDays(jan4, -dow);
+  return addDays(week1Mon, (n - 1) * 7);
+}
+function weeksInYear(year) {
+  // ISO: 52 weeks usually, 53 if Jan 1 is Thursday or (in leap years) Wednesday
+  const jan1Dow = new Date(year, 0, 1).getDay();
+  const leap = ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0);
+  if (jan1Dow === 4 || (leap && jan1Dow === 3)) return 53;
+  return 52;
+}
+
 function ord(n){
   const s=['th','st','nd','rd'], v=n%100;
   return n + (s[(v-20)%10] || s[v] || s[0]);
@@ -555,6 +598,9 @@ const UNITS = {
   q:'quarter', qtr:'quarter', qtrs:'quarter', quarter:'quarter', quarters:'quarter',
   h:'half', half:'half', halves:'half',
   y:'year', yr:'year', yrs:'year', year:'year', years:'year',
+  decade:'decade', decades:'decade', decennium:'decade', decennia:'decade',
+  century:'century', centuries:'century',
+  millennium:'millennium', millennia:'millennium', millenium:'millennium', milleniums:'millennium', millenniums:'millennium',
 };
 
 const WEEKDAY_IDX = {
@@ -688,7 +734,8 @@ function tokenize(input) {
     }
     if (matched) continue;
     const tk = classifyWord(words[i]);
-    if (tk) tokens.push(tk);
+    if (Array.isArray(tk)) tokens.push(...tk);
+    else if (tk) tokens.push(tk);
     i++;
   }
   return tokens;
@@ -729,13 +776,35 @@ function classifyWord(w) {
   // Quarters / halves
   if (/^q[1-4]$/.test(w)) return { type:'QUARTER', value: parseInt(w[1]) - 1, raw: w };
   if (/^h[12]$/.test(w))  return { type:'HALF',    value: parseInt(w[1]) - 1, raw: w };
+  // Decade shorthand: "2020s", "1990s"
+  if (m = w.match(/^(\d{4})s$/)) {
+    const y = parseInt(m[1]);
+    if (y >= 1000 && y <= 2900 && y % 10 === 0) return { type:'DECADE', value: y, raw: w };
+  }
 
-  // Signed numbers: +45, -7
+  // Signed numbers: "+5", "-7", "+1w", "-2mo" — split into OP + NUMBER (+ optional UNIT)
+  // so the parser's postfix-shift rule handles them uniformly whether they appear
+  // standalone (+5 alone) or trailing an anchor ("first fri of next month +5").
   if (m = w.match(/^([+-])(\d+)([a-z]+)?$/)) {
     const sign = m[1] === '+' ? 1 : -1;
-    const n = parseInt(m[2]);
-    const unit = m[3] ? (UNITS[m[3]] || null) : 'day';
-    if (unit) return { type:'SHIFT_LIT', sign, n, unit, raw: w };
+    const parts = [
+      { type:'OP', value: sign, raw: m[1] },
+      { type:'NUMBER', value: parseInt(m[2]), raw: m[2] },
+    ];
+    if (m[3]) {
+      const unit = UNITS[m[3]];
+      if (!unit) return null;
+      parts.push({ type:'UNIT', value: unit, raw: m[3] });
+    }
+    return parts;
+  }
+  // Attached number+unit: "5d", "10w", "3mo" — split so existing rules handle it
+  if (!/(st|nd|rd|th)$/.test(w) && (m = w.match(/^(\d+)([a-z]+)$/))) {
+    const unit = UNITS[m[2]];
+    if (unit) return [
+      { type:'NUMBER', value: parseInt(m[1]), raw: m[1] },
+      { type:'UNIT', value: unit, raw: m[2] },
+    ];
   }
   // Ordinal numerals: 1st, 2nd, ...
   if (m = w.match(/^(\d+)(st|nd|rd|th)$/)) {
@@ -935,7 +1004,6 @@ function parseAtom(toks) {
   if (toks.length === 1) {
     if (t0.type === 'LIT')      return { type:'Literal', value: t0.value };
     if (t0.type === 'DATE')     return { type:'DateLit', value: t0.value };
-    if (t0.type === 'SHIFT_LIT')return { type:'Shift', anchor:{ type:'Literal', value: 0 }, sign: t0.sign, n: t0.n, unit: t0.unit };
     if (t0.type === 'HOLIDAY')  return { type:'Holiday', name: t0.value, year: null };
     if (t0.type === 'WEEKDAY')  return { type:'Weekday', dir:'next-or-today', wd: t0.value };
     if (t0.type === 'WEEKEND')  return { type:'WeekendRange', dir:'this' };
@@ -944,12 +1012,30 @@ function parseAtom(toks) {
     if (t0.type === 'MONTH')    return { type:'MonthRange', month: t0.value, year: null };
     if (t0.type === 'QUARTER')  return { type:'QuarterRange', q: t0.value, year: TODAY.getFullYear() };
     if (t0.type === 'HALF')     return { type:'HalfRange', h: t0.value, year: TODAY.getFullYear() };
+    if (t0.type === 'DECADE')   return { type:'DecadeRange', decade: t0.value };
     if (t0.type === 'BOUND_UNIT') return { type:'BoundOf', bound: t0.bound, ref: { type:'Period', dir:'this', unit: t0.unit } };
   }
 
   // Two tokens
   if (toks.length === 2) {
     const [a, b] = toks;
+    // Standalone signed offset: "+45", "-7"  →  today ± n days
+    if (a.type === 'OP' && b.type === 'NUMBER') {
+      return { type:'Shift', anchor:{ type:'Literal', value: 0 }, sign: a.value, n: b.value, unit:'day' };
+    }
+    // "week 20", "month 3", "quarter 2", "day 100"  →  Nth slot of current year
+    // ("century 21", "millennium 3" mean the era directly, not Nth-of-year)
+    if (a.type === 'UNIT' && b.type === 'NUMBER') {
+      if (a.value === 'century')    return { type:'CenturyRange', n: b.value };
+      if (a.value === 'millennium') return { type:'MillenniumRange', n: b.value };
+      return { type:'NthIn', unit: a.value, n: b.value, container: { type:'YearRange', year: TODAY.getFullYear() } };
+    }
+    // "1st month", "3rd week", "21st century", "3rd millennium"
+    if (a.type === 'ORD' && b.type === 'UNIT') {
+      if (b.value === 'century')    return { type:'CenturyRange', n: a.value };
+      if (b.value === 'millennium') return { type:'MillenniumRange', n: a.value };
+      return { type:'NthIn', unit: b.value, n: a.value, container: { type:'YearRange', year: TODAY.getFullYear() } };
+    }
     if (a.type === 'DIR' && b.type === 'UNIT')      return { type:'Period', dir: a.value.kind, unit: b.value };
     if (a.type === 'DIR' && b.type === 'WEEKEND')   return { type:'WeekendRange', dir: a.value.kind };
     if (a.type === 'DIR' && b.type === 'WEEKDAY')   return { type:'Weekday', dir: a.value.kind, wd: b.value };
@@ -971,8 +1057,20 @@ function parseAtom(toks) {
   // Three tokens
   if (toks.length === 3) {
     const [a, b, c] = toks;
+    // Standalone signed offset with unit: "+5 days", "-2 weeks"
+    if (a.type === 'OP' && b.type === 'NUMBER' && c.type === 'UNIT') {
+      return { type:'Shift', anchor:{ type:'Literal', value: 0 }, sign: a.value, n: b.value, unit: c.value };
+    }
     if (a.type === 'DIR' && b.type === 'NUMBER' && c.type === 'UNIT') {
       return { type:'Window', dir: a.value.kind, n: b.value, unit: c.value };
+    }
+    // "week 20 2027", "month 3 2027"
+    if (a.type === 'UNIT' && b.type === 'NUMBER' && c.type === 'YEAR') {
+      return { type:'NthInYear', unit: a.value, n: b.value, year: c.value };
+    }
+    // "1st week of 2027", "3rd month 2027"
+    if (a.type === 'ORD' && b.type === 'UNIT' && c.type === 'YEAR') {
+      return { type:'NthInYear', unit: b.value, n: a.value, year: c.value };
     }
     if (a.type === 'MONTH' && b.type === 'NUMBER' && c.type === 'YEAR' && validDay(a.value, b.value)) {
       return { type:'MonthDay', month: a.value, day: b.value, year: c.value };
@@ -1009,6 +1107,19 @@ function parseAtom(toks) {
     if (isOrdinalLike(a) && b.type === 'WEEKDAY' && c.type === 'OF' && d.type === 'MONTH') {
       return { type:'NthWeekday', nth: ordValue(a), wd: b.value, monthRef: { type:'MonthRange', month: d.value, year: TODAY.getFullYear() } };
     }
+    // "1st week of sept", "3rd day of march"
+    if (isOrdinalLike(a) && b.type === 'UNIT' && c.type === 'OF' && d.type === 'MONTH') {
+      return { type:'NthIn', unit: b.value, n: ordValue(a), container: { type:'MonthRange', month: d.value, year: TODAY.getFullYear() } };
+    }
+    // "1st week of 2027", "5th month of next year", "3rd day of next week"
+    if (isOrdinalLike(a) && b.type === 'UNIT' && c.type === 'OF') {
+      const cont = parseAtom([d]);
+      if (cont) return { type:'NthIn', unit: b.value, n: ordValue(a), container: cont };
+    }
+    // "1st week of month" / "3rd day of week" — "this Y"
+    if (isOrdinalLike(a) && b.type === 'UNIT' && c.type === 'OF' && d.type === 'UNIT') {
+      return { type:'NthIn', unit: b.value, n: ordValue(a), container: { type:'Period', dir:'this', unit: d.value } };
+    }
     if (a.type === 'BOUND' && b.type === 'OF' && c.type === 'DIR' && d.type === 'UNIT') {
       return { type:'BoundOf', bound: a.value, ref: { type:'Period', dir: c.value.kind, unit: d.value } };
     }
@@ -1029,6 +1140,11 @@ function parseAtom(toks) {
     if (ref && (ref.type === 'MonthRange' || ref.type === 'Period')) {
       return { type:'NthWeekday', nth: ordValue(toks[0]), wd: toks[1].value, monthRef: ref };
     }
+  }
+  // "Nth UNIT of <container>" — container can be any AST node that evaluates to a range
+  if (toks.length >= 5 && isOrdinalLike(toks[0]) && toks[1].type === 'UNIT' && toks[2].type === 'OF') {
+    const cont = parseAtom(toks.slice(3));
+    if (cont) return { type:'NthIn', unit: toks[1].value, n: ordValue(toks[0]), container: cont };
   }
 
   // "start of <ref>" with 2 tokens (e.g. "start of week" → bound + unit)
@@ -1112,6 +1228,21 @@ function evalAst(node) {
     case 'Window':        return windowRange(node.dir, node.n, node.unit);
     case 'WeekendRange':  return weekendRange(node.dir);
     case 'YearRange':     return range(new Date(node.year, 0, 1), new Date(node.year, 11, 31));
+    case 'NthIn': {
+      const c = evalAst(node.container);
+      if (!c) return null;
+      return nthSliceWithin(c.start, c.end, node.unit, node.n);
+    }
+    case 'DecadeRange': {
+      return range(new Date(node.decade, 0, 1), new Date(node.decade + 9, 11, 31));
+    }
+    case 'CenturyRange': {
+      // Common usage: 21st century = 2000-2099 (the years that share the "21st" label)
+      return range(new Date((node.n - 1) * 100, 0, 1), new Date(node.n * 100 - 1, 11, 31));
+    }
+    case 'MillenniumRange': {
+      return range(new Date((node.n - 1) * 1000, 0, 1), new Date(node.n * 1000 - 1, 11, 31));
+    }
     case 'MonthRange': {
       const y = node.year ?? TODAY.getFullYear();
       return range(new Date(y, node.month, 1), endOfMonth(new Date(y, node.month, 1)));
@@ -1183,6 +1314,82 @@ function nthWeekdayInMonth(year, month, wd, nth) {
   return d;
 }
 
+// Given a container range, return its Nth `unit` slice (1-indexed; negative counts from the end)
+function nthSliceWithin(start, end, unit, n) {
+  if (!n) return null;
+  if (unit === 'day') {
+    const total = diffDays(start, end) + 1;
+    const d = n > 0 ? n : total + n + 1;
+    if (d < 1 || d > total) return null;
+    return single(addDays(start, d - 1));
+  }
+  if (unit === 'week') {
+    const w1 = startOfWeekMon(start);
+    const wEnd = startOfWeekMon(end);
+    const total = (diffDays(w1, wEnd) / 7) + 1;
+    const w = n > 0 ? n : total + n + 1;
+    if (w < 1 || w > total) return null;
+    const s = addDays(w1, (w - 1) * 7);
+    return range(s, addDays(s, 6));
+  }
+  if (unit === 'month') {
+    const total = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    const m = n > 0 ? n : total + n + 1;
+    if (m < 1 || m > total) return null;
+    const target = start.getMonth() + (m - 1);
+    const yr = start.getFullYear() + Math.floor(target / 12);
+    const mo = ((target % 12) + 12) % 12;
+    const s = new Date(yr, mo, 1);
+    return range(s, endOfMonth(s));
+  }
+  if (unit === 'quarter') {
+    const sq = Math.floor(start.getMonth() / 3), eq = Math.floor(end.getMonth() / 3);
+    const total = (end.getFullYear() - start.getFullYear()) * 4 + (eq - sq) + 1;
+    const q = n > 0 ? n : total + n + 1;
+    if (q < 1 || q > total) return null;
+    const target = sq + (q - 1);
+    const yr = start.getFullYear() + Math.floor(target / 4);
+    const qi = ((target % 4) + 4) % 4;
+    return range(new Date(yr, qi * 3, 1), new Date(yr, qi * 3 + 3, 0));
+  }
+  if (unit === 'half') {
+    const sh = start.getMonth() < 6 ? 0 : 1, eh = end.getMonth() < 6 ? 0 : 1;
+    const total = (end.getFullYear() - start.getFullYear()) * 2 + (eh - sh) + 1;
+    const h = n > 0 ? n : total + n + 1;
+    if (h < 1 || h > total) return null;
+    const target = sh + (h - 1);
+    const yr = start.getFullYear() + Math.floor(target / 2);
+    const hi = ((target % 2) + 2) % 2;
+    return range(new Date(yr, hi * 6, 1), new Date(yr, hi * 6 + 6, 0));
+  }
+  if (unit === 'year') {
+    const total = end.getFullYear() - start.getFullYear() + 1;
+    const y = n > 0 ? n : total + n + 1;
+    if (y < 1 || y > total) return null;
+    const yr = start.getFullYear() + y - 1;
+    return range(new Date(yr, 0, 1), new Date(yr, 11, 31));
+  }
+  if (unit === 'decade') {
+    const sDec = Math.floor(start.getFullYear() / 10) * 10;
+    const eDec = Math.floor(end.getFullYear() / 10) * 10;
+    const total = (eDec - sDec) / 10 + 1;
+    const d = n > 0 ? n : total + n + 1;
+    if (d < 1 || d > total) return null;
+    const dec = sDec + (d - 1) * 10;
+    return range(new Date(dec, 0, 1), new Date(dec + 9, 11, 31));
+  }
+  if (unit === 'century') {
+    const sC = Math.floor(start.getFullYear() / 100) * 100;
+    const eC = Math.floor(end.getFullYear() / 100) * 100;
+    const total = (eC - sC) / 100 + 1;
+    const c = n > 0 ? n : total + n + 1;
+    if (c < 1 || c > total) return null;
+    const cent = sC + (c - 1) * 100;
+    return range(new Date(cent, 0, 1), new Date(cent + 99, 11, 31));
+  }
+  return null;
+}
+
 function periodRange(dir, unit) {
   const sign = dir === 'next' ? 1 : dir === 'last' ? -1 : 0;
   if (unit === 'day') {
@@ -1212,6 +1419,21 @@ function periodRange(dir, unit) {
     const y = TODAY.getFullYear() + Math.floor(hi / 2);
     const h = ((hi % 2) + 2) % 2;
     return range(new Date(y, h * 6, 1), new Date(y, h * 6 + 6, 0));
+  }
+  if (unit === 'decade') {
+    const cur = Math.floor(TODAY.getFullYear() / 10) * 10;
+    const target = cur + sign * 10;
+    return range(new Date(target, 0, 1), new Date(target + 9, 11, 31));
+  }
+  if (unit === 'century') {
+    const cur = Math.floor(TODAY.getFullYear() / 100) * 100;
+    const target = cur + sign * 100;
+    return range(new Date(target, 0, 1), new Date(target + 99, 11, 31));
+  }
+  if (unit === 'millennium') {
+    const cur = Math.floor(TODAY.getFullYear() / 1000) * 1000;
+    const target = cur + sign * 1000;
+    return range(new Date(target, 0, 1), new Date(target + 999, 11, 31));
   }
   return null;
 }
@@ -1612,7 +1834,7 @@ function renderMonthPanel(year, month, role) {
 
   const dow = document.createElement('div');
   dow.className = 'dow';
-  dow.innerHTML = '<span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>';
+  dow.innerHTML = '<span class="w-head">wk</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>';
   panel.appendChild(dow);
 
   const grid = document.createElement('div');
@@ -1627,8 +1849,16 @@ function renderMonthPanel(year, month, role) {
   const re = r ? startOfDay(r.end) : null;
   const isRange = r && r.kind === 'range' && !sameDay(r.start, r.end);
 
+  const todayWeek = isoWeek(TODAY);
   for (let i = 0; i < 42; i++) {
     const d = addDays(start, i);
+    if (i % 7 === 0) {
+      const wn = document.createElement('div');
+      const wk = isoWeek(d);
+      wn.className = 'week-num' + (wk === todayWeek && d.getFullYear() === TODAY.getFullYear() ? ' current' : '');
+      wn.textContent = wk;
+      grid.appendChild(wn);
+    }
     const outside = d.getMonth() !== month;
     const isToday = sameDay(d, TODAY);
     let cls = 'cell';
