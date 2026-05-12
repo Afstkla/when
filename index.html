@@ -163,6 +163,37 @@
     margin-left: auto;
   }
 
+  .sentence {
+    margin-top: 12px;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-variation-settings: 'opsz' 36, 'wght' 300;
+    font-size: 15px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    min-height: 22px;
+    letter-spacing: -.003em;
+  }
+  .sentence em {
+    font-style: italic;
+    font-variation-settings: 'opsz' 36, 'wght' 500;
+    color: var(--ink);
+  }
+  .sentence .moon-inline {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: rgba(26,17,13,.2);
+    overflow: hidden;
+    position: relative;
+    vertical-align: -1px;
+    margin: 0 2px;
+  }
+  .sentence .moon-inline .lit {
+    position: absolute; inset: 0;
+    background: rgba(26,17,13,.65);
+  }
+
   /* Calendar strip — vertical stack: start month on top, end month on bottom */
   .cal-strip {
     margin-top: 24px;
@@ -279,6 +310,37 @@
     letter-spacing: .25em;
     text-transform: uppercase;
   }
+
+  /* Moon-phase glyph in each cell */
+  .cell .moon {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(26,17,13,.18);
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .cell .moon .lit {
+    position: absolute;
+    inset: 0;
+    background: rgba(26,17,13,.5);
+  }
+  .cell.selected .moon,
+  .cell.range-start .moon,
+  .cell.range-end .moon {
+    background: rgba(247,243,235,.35);
+  }
+  .cell.selected .moon .lit,
+  .cell.range-start .moon .lit,
+  .cell.range-end .moon .lit {
+    background: rgba(247,243,235,.9);
+  }
+  .cell.in-range .moon { background: rgba(176,53,36,.25); }
+  .cell.in-range .moon .lit { background: rgba(176,53,36,.55); }
+  .cell.outside .moon { opacity: .4; }
 
   .cell {
     aspect-ratio: 1 / .8;
@@ -470,6 +532,7 @@
     </div>
 
     <div class="result" id="result"></div>
+    <div class="sentence" id="sentence" aria-live="polite"></div>
 
     <div class="cal-strip" id="strip"></div>
 
@@ -553,6 +616,49 @@ function weekStartOfYear(year, n) {
   const week1Mon = addDays(jan4, -dow);
   return addDays(week1Mon, (n - 1) * 7);
 }
+// Synodic moon phase — 0 = new, 0.5 = full, 1 = new again
+function moonPhase(d) {
+  const knownNew = Date.UTC(2000, 0, 6, 18, 14) / 86400000;
+  const SYN = 29.53058867;
+  const days = d.getTime() / 86400000;
+  let p = ((days - knownNew) % SYN) / SYN;
+  if (p < 0) p += 1;
+  return p;
+}
+
+function moonName(p) {
+  if (p < 0.03 || p > 0.97) return 'new';
+  if (p < 0.22) return 'waxing crescent';
+  if (p < 0.28) return 'first quarter';
+  if (p < 0.47) return 'waxing gibbous';
+  if (p < 0.53) return 'full';
+  if (p < 0.72) return 'waning gibbous';
+  if (p < 0.78) return 'last quarter';
+  return 'waning crescent';
+}
+
+// Set the lit-side clip on a moon glyph. r = radius of glyph in px.
+function applyMoonClip(litEl, phase, r) {
+  const illum = (1 - Math.cos(2 * Math.PI * phase)) / 2;
+  const waxing = phase < 0.5;
+  const k = Math.abs(2 * illum - 1);
+  const fullSide = illum > 0.5;
+  let clip;
+  if (illum < 0.02) clip = 'inset(0 100% 0 0)';
+  else if (illum > 0.98) clip = 'inset(0 0 0 0)';
+  else if (waxing) {
+    clip = fullSide
+      ? `path('M ${r},0 A ${r},${r} 0 0 1 ${r},${2*r} A ${r*k},${r} 0 0 0 ${r},0 Z')`
+      : `path('M ${r},0 A ${r},${r} 0 0 1 ${r},${2*r} A ${r*k},${r} 0 0 1 ${r},0 Z')`;
+  } else {
+    clip = fullSide
+      ? `path('M ${r},0 A ${r},${r} 0 0 0 ${r},${2*r} A ${r*k},${r} 0 0 1 ${r},0 Z')`
+      : `path('M ${r},0 A ${r},${r} 0 0 0 ${r},${2*r} A ${r*k},${r} 0 0 0 ${r},0 Z')`;
+  }
+  litEl.style.clipPath = clip;
+  litEl.style.webkitClipPath = clip;
+}
+
 function weeksInYear(year) {
   // ISO: 52 weeks usually, 53 if Jan 1 is Thursday or (in leap years) Wednesday
   const jan1Dow = new Date(year, 0, 1).getDay();
@@ -607,6 +713,9 @@ const UNITS = {
   decade:'decade', decades:'decade', decennium:'decade', decennia:'decade',
   century:'century', centuries:'century',
   millennium:'millennium', millennia:'millennium', millenium:'millennium', milleniums:'millennium', millenniums:'millennium',
+  // Business / weekday-only counting
+  b:'businessDay', bd:'businessDay', bday:'businessDay', bdays:'businessDay',
+  weekdays:'businessDay',
 };
 
 const WEEKDAY_IDX = {
@@ -698,8 +807,33 @@ const HOLIDAYS = {
   easter:              { type:'easter', offset: 0 },
   'easter sunday':     { type:'easter', offset: 0 },
   'good friday':       { type:'easter', offset:-2 },
-  // Solstice (defaults to summer; user can write "winter solstice" if needed later)
+  // Solstice (defaults to next one: summer or winter)
   solstice:            { type:'solstice' },
+  'winter solstice':   { type:'fixed', month:11, day:21 },
+  'summer solstice':   { type:'fixed', month: 5, day:21 },
+  'vernal equinox':    { type:'fixed', month: 2, day:20 },
+  'spring equinox':    { type:'fixed', month: 2, day:20 },
+  'autumnal equinox':  { type:'fixed', month: 8, day:22 },
+  'fall equinox':      { type:'fixed', month: 8, day:22 },
+  'autumn equinox':    { type:'fixed', month: 8, day:22 },
+  equinox:             { type:'equinox' },
+};
+
+// Zodiac signs (Western tropical, common-date boundaries).
+// `wraps` = true means the range spans the year boundary (Capricorn).
+const ZODIACS = {
+  aries:       { startM: 2, startD: 21, endM: 3,  endD: 19 },
+  taurus:      { startM: 3, startD: 20, endM: 4,  endD: 20 },
+  gemini:      { startM: 4, startD: 21, endM: 5,  endD: 20 },
+  cancer:      { startM: 5, startD: 21, endM: 6,  endD: 22 },
+  leo:         { startM: 6, startD: 23, endM: 7,  endD: 22 },
+  virgo:       { startM: 7, startD: 23, endM: 8,  endD: 22 },
+  libra:       { startM: 8, startD: 23, endM: 9,  endD: 22 },
+  scorpio:     { startM: 9, startD: 23, endM: 10, endD: 21 },
+  sagittarius: { startM: 10, startD: 22, endM: 11, endD: 21 },
+  capricorn:   { startM: 11, startD: 22, endM:  0, endD: 19, wraps: true },
+  aquarius:    { startM:  0, startD: 20, endM:  1, endD: 18 },
+  pisces:      { startM:  1, startD: 19, endM:  2, endD: 20 },
 };
 
 const CONNECTIVES = new Set(['to','through','thru','until','til','till']);
@@ -719,10 +853,13 @@ function tokenize(input) {
   s = s.replace(/\bthe day before yesterday\b/g, '__dby__');
   s = s.replace(/\bday before yesterday\b/g,     '__dby__');
   s = s.replace(/\bprior to\b/g, 'before');
+  s = s.replace(/\bbusiness day(s)?\b/g, 'bday$1');
+  s = s.replace(/\bworking day(s)?\b/g, 'bday$1');
   s = s.replace(/\bin the future\b/g, '');
   s = s.replace(/\b(?:from|since)\s+(now|today)\b(?!\s+(?:to|through|thru|until|til|till))/g, '__forward__');
   s = s.replace(/\bfrom\s+(now|today)\b/g, '$1');  // remaining "from now" before connectives → "now"
-  s = s.trim();
+  // Strip articles (after multi-word substitutions like "the day after tomorrow" have run)
+  s = s.replace(/\bthe\b/g, ' ').replace(/\s+/g, ' ').trim();
 
   if (!s) return [];
   const words = s.split(' ');
@@ -860,6 +997,7 @@ function classifyWord(w) {
   if (w in MONTH_IDX)    return { type:'MONTH',   value: MONTH_IDX[w],    raw: w };
   if (w in ORDINALS)     return { type:'ORD',     value: ORDINALS[w],     raw: w };
   if (w in HOLIDAYS)     return { type:'HOLIDAY', value: w,               raw: w };
+  if (w in ZODIACS)      return { type:'ZODIAC',  value: w,               raw: w };
 
   // Literals
   if (['today','tdy','now'].includes(w))                            return { type:'LIT', value: 0, raw: w };
@@ -1015,6 +1153,7 @@ function parseAtom(toks) {
     if (t0.type === 'LIT')      return { type:'Literal', value: t0.value };
     if (t0.type === 'DATE')     return { type:'DateLit', value: t0.value };
     if (t0.type === 'HOLIDAY')  return { type:'Holiday', name: t0.value, year: null };
+    if (t0.type === 'ZODIAC')   return { type:'ZodiacRange', sign: t0.value, year: null };
     if (t0.type === 'WEEKDAY')  return { type:'Weekday', dir:'next-or-today', wd: t0.value };
     if (t0.type === 'WEEKEND')  return { type:'WeekendRange', dir:'this' };
     if (t0.type === 'WEEKDAY_LIT') return { type:'NextWeekday' };  // next non-weekend
@@ -1049,6 +1188,7 @@ function parseAtom(toks) {
     if (a.type === 'DIR' && b.type === 'UNIT')      return { type:'Period', dir: a.value.kind, unit: b.value };
     if (a.type === 'DIR' && b.type === 'WEEKEND')   return { type:'WeekendRange', dir: a.value.kind };
     if (a.type === 'DIR' && b.type === 'WEEKDAY')   return { type:'Weekday', dir: a.value.kind, wd: b.value };
+    if (a.type === 'DIR' && b.type === 'WEEKDAY_LIT') return { type:'Period', dir: a.value.kind, unit: 'businessDay' };
     if (a.type === 'DIR' && b.type === 'HOLIDAY') {
       // "this xmas" = upcoming; "next xmas" = the one after; "last xmas" = most recent past
       const h = HOLIDAYS[b.value];
@@ -1068,6 +1208,7 @@ function parseAtom(toks) {
     }
     if (a.type === 'DIR' && b.type === 'MONTH')     return { type:'MonthRange', month: b.value, year: shiftedYearForMonth(b.value, a.value) };
     if (a.type === 'HOLIDAY' && b.type === 'YEAR')  return { type:'Holiday', name: a.value, year: b.value };
+    if (a.type === 'ZODIAC' && b.type === 'YEAR')   return { type:'ZodiacRange', sign: a.value, year: b.value };
     if (a.type === 'MONTH' && b.type === 'NUMBER')  return validDay(a.value, b.value) ? { type:'MonthDay', month: a.value, day: b.value, year: TODAY.getFullYear() } : null;
     if (a.type === 'MONTH' && b.type === 'ORD')     return validDay(a.value, b.value) ? { type:'MonthDay', month: a.value, day: b.value, year: TODAY.getFullYear() } : null;
     if (a.type === 'NUMBER' && b.type === 'MONTH')  return validDay(b.value, a.value) ? { type:'MonthDay', month: b.value, day: a.value, year: TODAY.getFullYear() } : null;
@@ -1260,6 +1401,20 @@ function evalAst(node) {
       if (!c) return null;
       return nthSliceWithin(c.start, c.end, node.unit, node.n);
     }
+    case 'ZodiacRange': {
+      const z = ZODIACS[node.sign];
+      if (!z) return null;
+      const refYr = node.year ?? TODAY.getFullYear();
+      // Find the season that's currently active or next upcoming, anchored near `refYr`
+      const candStart = new Date(refYr, z.startM, z.startD);
+      const candEnd   = z.wraps ? new Date(refYr + 1, z.endM, z.endD) : new Date(refYr, z.endM, z.endD);
+      // Auto-roll if user didn't pin a year and this candidate has passed
+      if (node.year == null && candEnd < TODAY) {
+        return range(new Date(refYr + 1, z.startM, z.startD),
+                     z.wraps ? new Date(refYr + 2, z.endM, z.endD) : new Date(refYr + 1, z.endM, z.endD));
+      }
+      return range(candStart, candEnd);
+    }
     case 'DecadeRange': {
       return range(new Date(node.decade, 0, 1), new Date(node.decade + 9, 11, 31));
     }
@@ -1308,13 +1463,29 @@ function single(d) { return d ? { kind:'single', start: d, end: d } : null; }
 function range(a, b) { return { kind:'range', start: a, end: b }; }
 
 function shiftDate(d, n, unit) {
-  if (unit === 'day')     return addDays(d, n);
-  if (unit === 'week')    return addDays(d, n * 7);
-  if (unit === 'month')   return addMonths(d, n);
-  if (unit === 'quarter') return addMonths(d, n * 3);
-  if (unit === 'half')    return addMonths(d, n * 6);
-  if (unit === 'year')    return addYears(d, n);
+  if (unit === 'day')          return addDays(d, n);
+  if (unit === 'week')         return addDays(d, n * 7);
+  if (unit === 'month')        return addMonths(d, n);
+  if (unit === 'quarter')      return addMonths(d, n * 3);
+  if (unit === 'half')         return addMonths(d, n * 6);
+  if (unit === 'year')         return addYears(d, n);
+  if (unit === 'decade')       return addYears(d, n * 10);
+  if (unit === 'century')      return addYears(d, n * 100);
+  if (unit === 'millennium')   return addYears(d, n * 1000);
+  if (unit === 'businessDay')  return addBusinessDays(d, n);
   return d;
+}
+
+function addBusinessDays(d, n) {
+  let x = new Date(d);
+  const dir = n >= 0 ? 1 : -1;
+  let remaining = Math.abs(n);
+  while (remaining > 0) {
+    x = addDays(x, dir);
+    const dow = x.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  return x;
 }
 
 function weekdayDate(dir, wd) {
@@ -1462,6 +1633,14 @@ function periodRange(dir, unit) {
     const target = cur + sign * 1000;
     return range(new Date(target, 0, 1), new Date(target + 999, 11, 31));
   }
+  if (unit === 'businessDay') {
+    if (sign === 0) {
+      const dow = TODAY.getDay();
+      if (dow === 0 || dow === 6) return single(addBusinessDays(TODAY, 1));
+      return single(TODAY);
+    }
+    return single(addBusinessDays(TODAY, sign));
+  }
   return null;
 }
 
@@ -1480,6 +1659,9 @@ function windowRange(dir, n, unit) {
   } else if (unit === 'year') {
     if (forward) { s = TODAY; e = addDays(addYears(TODAY, n), -1); }
     else         { e = TODAY; s = addDays(addYears(TODAY, -n), 1); }
+  } else if (unit === 'businessDay') {
+    if (forward) { s = TODAY; e = addBusinessDays(TODAY, n - 1); }
+    else         { e = TODAY; s = addBusinessDays(TODAY, -(n - 1)); }
   } else return null;
   return range(s, e);
 }
@@ -1528,6 +1710,14 @@ function resolveHoliday(name, year) {
     if (TODAY < summer) return summer;
     if (TODAY < winter) return winter;
     return new Date(y + 1, 5, 21);
+  }
+  else if (h.type === 'equinox') {
+    // Default to next equinox (vernal or autumnal) from today
+    const vernal = new Date(y, 2, 20);
+    const autumnal = new Date(y, 8, 22);
+    if (TODAY < vernal) return vernal;
+    if (TODAY < autumnal) return autumnal;
+    return new Date(y + 1, 2, 20);
   }
   if (!d) return null;
   // Auto-roll to next year if user didn't specify a year and the holiday has passed
@@ -1779,6 +1969,79 @@ function formatLong(d) {
   return `<em>${day}</em> ${monthName}${yrTag}`;
 }
 
+function renderSentence() {
+  const el = $('sentence');
+  if (!el) return;
+  el.innerHTML = buildSentence(state.parsed);
+}
+
+function buildSentence(r) {
+  if (!r) return '';
+  if (r.kind === 'single' || sameDay(r.start, r.end)) {
+    return singleSentence(r.start);
+  }
+  return rangeSentence(r.start, r.end);
+}
+
+function dowLong(d)  { return d.toLocaleDateString('en-US', { weekday: 'long' }); }
+function dowShort(d) { return d.toLocaleDateString('en-US', { weekday: 'short' }); }
+function fmtDateLong(d, showYear) {
+  const opts = { day: 'numeric', month: 'long' };
+  if (showYear) opts.year = 'numeric';
+  return d.toLocaleDateString('en-GB', opts);
+}
+
+function humanDuration(days) {
+  if (days <= 1) return `${days} day`;
+  if (days < 60) return `${days} days`;
+  if (days < 365) {
+    const w = Math.round(days / 7);
+    return `${w} weeks`;
+  }
+  const years = days / 365.25;
+  const wholeY = Math.floor(years);
+  const remDays = Math.round(days - wholeY * 365.25);
+  if (remDays === 0) return `${wholeY} year${wholeY === 1 ? '' : 's'}`;
+  if (remDays < 7)   return `${wholeY} year${wholeY === 1 ? '' : 's'}`;
+  if (remDays < 30)  return `${wholeY} year${wholeY === 1 ? '' : 's'} and ${remDays} days`;
+  const months = Math.round(remDays / 30.4);
+  return `${wholeY} year${wholeY === 1 ? '' : 's'} and ${months} month${months === 1 ? '' : 's'}`;
+}
+
+function moonInlineHTML(d) {
+  const p = moonPhase(d);
+  const tmp = document.createElement('span');
+  tmp.className = 'lit';
+  applyMoonClip(tmp, p, 4.5);
+  return `<span class="moon-inline" title="${moonName(p)} moon"><span class="lit" style="clip-path:${tmp.style.clipPath};-webkit-clip-path:${tmp.style.webkitClipPath}"></span></span>`;
+}
+
+function singleSentence(d) {
+  const dow = dowLong(d);
+  const days = diffDays(TODAY, d);
+  const wk = isoWeek(d);
+  const moon = moonInlineHTML(d);
+  const sameYear = d.getFullYear() === TODAY.getFullYear();
+  const fmt = fmtDateLong(d, !sameYear);
+  if (days === 0) return `It’s a <em>${dow}</em> — week ${wk}, ${moon} ${moonName(moonPhase(d))} moon.`;
+  if (days === 1) return `Tomorrow is a <em>${dow}</em>, in week ${wk}, ${moon} ${moonName(moonPhase(d))} moon.`;
+  if (days === -1) return `Yesterday was a <em>${dow}</em>, in week ${wk}.`;
+  const ago = days < 0;
+  const dur = humanDuration(Math.abs(days));
+  return `<em>${dow} ${fmt}</em> is <em>${dur}</em> ${ago ? 'ago' : 'from now'}, in week ${wk}${ago ? '' : `, ${moon} ${moonName(moonPhase(d))} moon`}.`;
+}
+
+function rangeSentence(a, b) {
+  const days = diffDays(a, b) + 1;
+  const dur = humanDuration(days);
+  const sameYr = a.getFullYear() === b.getFullYear();
+  const fmtA = fmtDateLong(a, !sameYr || a.getFullYear() !== TODAY.getFullYear());
+  const fmtB = fmtDateLong(b, true);
+  const wkA = isoWeek(a), wkB = isoWeek(b);
+  const wkPart = wkA === wkB ? `week ${wkA}` : `weeks ${wkA}–${wkB}`;
+  return `<em>${dur}</em> from <em>${dowShort(a)} ${fmtA}</em> to <em>${dowShort(b)} ${fmtB}</em> — ${wkPart}.`;
+}
+
 function relPhrase(d) {
   const days = diffDays(TODAY, d);
   if (days === 0) return 'today';
@@ -1907,8 +2170,17 @@ function renderMonthPanel(year, month, role) {
 
     const btn = document.createElement('button');
     btn.className = cls;
-    btn.textContent = String(d.getDate());
     btn.dataset.iso = fmtISO(d);
+    btn.dataset.moon = moonName(moonPhase(d));
+    btn.title = `${d.toDateString()} · ${btn.dataset.moon} moon`;
+    btn.append(document.createTextNode(String(d.getDate())));
+    const moon = document.createElement('span');
+    moon.className = 'moon';
+    const lit = document.createElement('span');
+    lit.className = 'lit';
+    moon.appendChild(lit);
+    applyMoonClip(lit, moonPhase(d), 3);
+    btn.appendChild(moon);
     btn.addEventListener('pointerdown', e => onCellDown(e, d, btn));
     btn.addEventListener('click', () => onCellClick(d));
     grid.appendChild(btn);
@@ -2083,6 +2355,7 @@ function runParse() {
     state.correction = trySpellCorrect(v);
   }
   renderResult();
+  renderSentence();
   renderCalendar();
   updateGhost();
 
