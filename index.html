@@ -485,9 +485,15 @@
       <button class="ex">weekend after next</button>
       <button class="ex">first mon of march</button>
       <button class="ex">end of month</button>
+      <button class="ex">week 20</button>
+      <button class="ex">1st week of sept</button>
+      <button class="ex">3rd day of next week</button>
       <button class="ex">q4 2026</button>
+      <button class="ex">2nd decade of 21st century</button>
+      <button class="ex">2020s</button>
       <button class="ex">christmas</button>
-      <button class="ex">thanksgiving</button>
+      <button class="ex">last christmas</button>
+      <button class="ex">next thanksgiving</button>
       <button class="ex">10 days before xmas</button>
       <button class="ex">today + 10 days</button>
       <button class="ex">next fri + 3 days</button>
@@ -847,6 +853,10 @@ function classifyWord(w) {
   if (w in DIRECTIONS)   return { type:'DIR',     value: DIRECTIONS[w],   raw: w };
   if (w in UNITS)        return { type:'UNIT',    value: UNITS[w],        raw: w };
   if (w in WEEKDAY_IDX)  return { type:'WEEKDAY', value: WEEKDAY_IDX[w],  raw: w };
+  // Plural weekdays: "mondays", "tuesdays" — strip trailing 's'
+  if (w.length > 3 && w.endsWith('s') && (w.slice(0,-1) in WEEKDAY_IDX)) {
+    return { type:'WEEKDAY', value: WEEKDAY_IDX[w.slice(0,-1)], raw: w };
+  }
   if (w in MONTH_IDX)    return { type:'MONTH',   value: MONTH_IDX[w],    raw: w };
   if (w in ORDINALS)     return { type:'ORD',     value: ORDINALS[w],     raw: w };
   if (w in HOLIDAYS)     return { type:'HOLIDAY', value: w,               raw: w };
@@ -1039,6 +1049,23 @@ function parseAtom(toks) {
     if (a.type === 'DIR' && b.type === 'UNIT')      return { type:'Period', dir: a.value.kind, unit: b.value };
     if (a.type === 'DIR' && b.type === 'WEEKEND')   return { type:'WeekendRange', dir: a.value.kind };
     if (a.type === 'DIR' && b.type === 'WEEKDAY')   return { type:'Weekday', dir: a.value.kind, wd: b.value };
+    if (a.type === 'DIR' && b.type === 'HOLIDAY') {
+      // "this xmas" = upcoming; "next xmas" = the one after; "last xmas" = most recent past
+      const h = HOLIDAYS[b.value];
+      if (!h) return null;
+      const thisYr = TODAY.getFullYear();
+      const ref =
+        h.type === 'fixed'   ? new Date(thisYr, h.month, h.day) :
+        h.type === 'nth'     ? nthWeekdayInMonth(thisYr, h.month, h.weekday, h.nth) :
+        h.type === 'easter'  ? addDays(easterDate(thisYr), h.offset) :
+        h.type === 'solstice'? new Date(thisYr, 5, 21) : null;
+      if (!ref) return null;
+      let yr = thisYr;
+      if (a.value.kind === 'this')      yr = ref < TODAY ? thisYr + 1 : thisYr;
+      else if (a.value.kind === 'next') yr = ref < TODAY ? thisYr + 2 : thisYr + 1;
+      else if (a.value.kind === 'last') yr = ref > TODAY ? thisYr - 1 : thisYr;
+      return { type:'Holiday', name: b.value, year: yr };
+    }
     if (a.type === 'DIR' && b.type === 'MONTH')     return { type:'MonthRange', month: b.value, year: shiftedYearForMonth(b.value, a.value) };
     if (a.type === 'HOLIDAY' && b.type === 'YEAR')  return { type:'Holiday', name: a.value, year: b.value };
     if (a.type === 'MONTH' && b.type === 'NUMBER')  return validDay(a.value, b.value) ? { type:'MonthDay', month: a.value, day: b.value, year: TODAY.getFullYear() } : null;
