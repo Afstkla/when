@@ -1,0 +1,1705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>When · A Date Parser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f7f3eb;
+    --ink: #14110d;
+    --ink-2: #4a4338;
+    --muted: #8a7e6a;
+    --rule: #d8cdb5;
+    --rule-2: #ebe2cc;
+    --accent: #b03524;
+    --ok: #2e7d4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12vh 24px 80px;
+    line-height: 1.4;
+  }
+  ::selection { background: var(--ink); color: var(--bg); }
+
+  .app { width: min(640px, 100%); }
+
+  /* Input row */
+  .input-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 14px;
+  }
+  .prompt {
+    font-family: 'Fraunces', serif;
+    font-size: 30px;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+    line-height: 1;
+    user-select: none;
+    transform: translateY(2px);
+  }
+  .qbox {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+  }
+  #q, .qbox .shadow {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: 'opsz' 100, 'wght' 400;
+    font-size: 32px;
+    letter-spacing: -.015em;
+    line-height: 1.4;
+    padding: 0;
+  }
+  #q {
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--ink);
+    width: 100%;
+    caret-color: var(--accent);
+    position: relative;
+    z-index: 1;
+    display: block;
+  }
+  #q::placeholder {
+    color: var(--muted);
+    font-style: italic;
+    font-variation-settings: 'opsz' 100, 'wght' 300;
+  }
+  .qbox .shadow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: pre;
+    color: transparent;
+    z-index: 0;
+  }
+  .qbox .shadow .typed { visibility: hidden; }
+  .qbox .shadow .ghost {
+    color: var(--muted);
+    font-style: italic;
+    font-variation-settings: 'opsz' 100, 'wght' 300;
+    opacity: .55;
+  }
+  .qbox .shadow .ghost:not(:empty)::after {
+    content: '↹';
+    margin-left: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    opacity: .7;
+    vertical-align: 4px;
+    font-style: normal;
+  }
+  /* "Did you mean" suggestion chip */
+  .hint-btn {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-variation-settings: 'opsz' 60, 'wght' 500;
+    font-size: 20px;
+    color: var(--accent);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px dashed var(--accent);
+    cursor: pointer;
+    padding: 0 1px;
+    transition: background .15s, color .15s;
+  }
+  .hint-btn:hover { background: var(--accent); color: var(--bg); }
+
+  /* Result row */
+  .result {
+    margin-top: 18px;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: 'Fraunces', serif;
+  }
+  .result .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .result .badge.err { background: var(--accent); }
+  .result .badge.warn { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+  .result .when {
+    font-variation-settings: 'opsz' 60, 'wght' 400;
+    font-size: 22px;
+    letter-spacing: -.005em;
+  }
+  .result .when .dim { color: var(--muted); }
+  .result .when em { font-style: italic; color: var(--accent); font-weight: 500; }
+  .result .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* Calendar strip — vertical stack: start month on top, end month on bottom */
+  .cal-strip {
+    margin-top: 24px;
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: stretch;
+  }
+  .cal-strip.panels-gap { gap: 0; }
+  .cal-strip.panels-2 .cell,
+  .cal-strip.panels-gap .cell { aspect-ratio: 1 / .55; font-size: 14px; }
+  .cal-strip.panels-2 .panel,
+  .cal-strip.panels-gap .panel {
+    width: min(520px, 100%);
+    margin: 0 auto;
+  }
+
+  .panel { min-width: 0; }
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .panel-head .title {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: 'opsz' 60, 'wght' 500;
+    font-size: 16px;
+    letter-spacing: -.005em;
+  }
+  .panel-head .title .yr { color: var(--muted); margin-left: 4px; font-weight: 400; }
+  .panel-head .role {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel-head .role.start { color: var(--accent); }
+  .panel-head .role.end { color: var(--accent); }
+
+  .dow {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 4px;
+  }
+  .dow span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+  }
+
+  /* Gap (elided months between range endpoints) — horizontal divider */
+  .gap {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 0;
+    color: var(--muted);
+  }
+  .gap::before, .gap::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: repeating-linear-gradient(to right, var(--rule) 0 4px, transparent 4px 8px);
+  }
+  .gap .dots { display: none; }
+  .gap .n {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-variation-settings: 'opsz' 60, 'wght' 400;
+    font-size: 22px;
+    color: var(--ink);
+    line-height: 1;
+    letter-spacing: -.01em;
+  }
+  .gap .lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+  }
+
+  .cell {
+    aspect-ratio: 1 / .8;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font-family: 'Fraunces', serif;
+    font-variation-settings: 'opsz' 36, 'wght' 400;
+    font-size: 15px;
+    letter-spacing: -.005em;
+    border-radius: 4px;
+    position: relative;
+    transition: background .15s, color .15s;
+    user-select: none;
+    touch-action: none;
+  }
+  .cell:hover { background: var(--rule-2); }
+  .cell.outside { color: var(--muted); opacity: .55; }
+  .cell.today { color: var(--accent); font-variation-settings: 'opsz' 36, 'wght' 500; }
+  .cell.today::after {
+    content: '';
+    position: absolute;
+    bottom: 6px; left: 50%;
+    transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .cell.selected {
+    background: var(--ink);
+    color: var(--bg);
+    font-variation-settings: 'opsz' 36, 'wght' 500;
+  }
+  .cell.selected.today { color: var(--bg); }
+  .cell.selected.today::after { background: var(--bg); }
+  .cell.in-range {
+    background: rgba(176,53,36,.10);
+    border-radius: 0;
+  }
+  .cell.range-start, .cell.range-end {
+    background: var(--accent);
+    color: var(--bg);
+    font-variation-settings: 'opsz' 36, 'wght' 500;
+    cursor: grab;
+  }
+  .cell.range-start { border-radius: 4px 0 0 4px; }
+  .cell.range-end { border-radius: 0 4px 4px 0; }
+  .cell.range-start.range-end { border-radius: 4px; }
+  .cell.range-start::after, .cell.range-end::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.7);
+  }
+  .cell.range-start::after { left: 4px; }
+  .cell.range-end::after { right: 4px; }
+  .cell.range-mid-row + .cell.in-range { border-radius: 0; }
+
+  body.dragging,
+  body.dragging * { cursor: grabbing !important; }
+  body.dragging .cell { transition: none; }
+
+  /* Scroll cue while dragging at top/bottom edge */
+  .cal-strip { position: relative; }
+  .cal-strip::before, .cal-strip::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 56px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+  .cal-strip::before {
+    top: 0;
+    background: linear-gradient(to top, transparent, rgba(176,53,36,.10));
+  }
+  .cal-strip::after {
+    bottom: 0;
+    background: linear-gradient(to bottom, transparent, rgba(176,53,36,.10));
+  }
+  .cal-strip[data-scrolling="up"]::before { opacity: 1; }
+  .cal-strip[data-scrolling="down"]::after { opacity: 1; }
+  .cal-strip[data-scrolling]::before,
+  .cal-strip[data-scrolling]::after {
+    /* arrow */
+  }
+  .cal-strip .scroll-cue {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity .15s ease;
+    pointer-events: none;
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(176,53,36,.25);
+    z-index: 2;
+  }
+  .cal-strip .scroll-cue.top { top: 6px; }
+  .cal-strip .scroll-cue.bot { bottom: 6px; }
+  .cal-strip[data-scrolling="up"] .scroll-cue.top { opacity: 1; }
+  .cal-strip[data-scrolling="down"] .scroll-cue.bot { opacity: 1; }
+
+  /* Examples */
+  .examples {
+    margin-top: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ex {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .04em;
+    color: var(--muted);
+    padding: 5px 0;
+    margin-right: 6px;
+    border-bottom: 1px dotted var(--rule);
+    transition: color .15s, border-color .15s;
+  }
+  .ex:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Helper label */
+  .meta-line {
+    margin-top: 26px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+  .meta-line .iso { color: var(--ink); }
+
+  /* Tiny shake on parse error while typing */
+  .input-row.err { animation: nudge .35s ease; }
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+  }
+
+  /* Result fade in */
+  .result > * { animation: rise .35s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15120e;
+      --ink: #ede2c8;
+      --ink-2: #b8ad94;
+      --muted: #7a7060;
+      --rule: #2e2a23;
+      --rule-2: #221f1a;
+      --accent: #d96550;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="app">
+    <div class="input-row" id="inputRow">
+      <span class="prompt">›</span>
+      <div class="qbox">
+        <div class="shadow" aria-hidden="true"><span class="typed"></span><span class="ghost"></span></div>
+        <input id="q" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus
+               placeholder="say when — try “yday to tmrw” or “next fri”" />
+      </div>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <div class="cal-strip" id="strip"></div>
+
+    <div class="examples" id="examples">
+      <button class="ex">today</button>
+      <button class="ex">tmrw</button>
+      <button class="ex">yday to tmrw</button>
+      <button class="ex">next fri</button>
+      <button class="ex">in 3 weeks</button>
+      <button class="ex">2 mondays from now</button>
+      <button class="ex">last 30 days</button>
+      <button class="ex">this weekend</button>
+      <button class="ex">weekend after next</button>
+      <button class="ex">first mon of march</button>
+      <button class="ex">end of month</button>
+      <button class="ex">q4 2026</button>
+      <button class="ex">christmas</button>
+      <button class="ex">thanksgiving</button>
+      <button class="ex">10 days before xmas</button>
+      <button class="ex">today + 10 days</button>
+      <button class="ex">next fri + 3 days</button>
+      <button class="ex">may 12 – 19</button>
+      <button class="ex">5/12/26</button>
+      <button class="ex">+45</button>
+    </div>
+
+    <div class="meta-line">
+      <span>When · a date parser</span>
+      <span class="iso" id="isoLine">—</span>
+    </div>
+  </main>
+
+<script>
+'use strict';
+
+/* ───────────────────────────── helpers ─────────────────────────── */
+
+const MONTHS_FULL = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const MONTHS_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const MONTH_ALIASES = { sept: 8 };
+const WEEKDAYS = {
+  sun:0,sunday:0,
+  mon:1,monday:1,
+  tue:2,tues:2,tuesday:2,
+  wed:3,weds:3,wednesday:3,
+  thu:4,thur:4,thurs:4,thursday:4,
+  fri:5,friday:5,
+  sat:6,saturday:6,
+};
+const ORDINALS = {
+  first:1,1:1,'1st':1,one:1,
+  second:2,2:2,'2nd':2,two:2,
+  third:3,3:3,'3rd':3,three:3,
+  fourth:4,4:4,'4th':4,four:4,
+  fifth:5,5:5,'5th':5,five:5,
+  last:-1,final:-1,
+};
+const UNIT_DAYS = { d:1, day:1, days:1, w:7, wk:7, wks:7, week:7, weeks:7 };
+
+function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function addMonths(d,n){
+  const x=new Date(d);
+  const day=x.getDate();
+  x.setDate(1);
+  x.setMonth(x.getMonth()+n);
+  const last = new Date(x.getFullYear(), x.getMonth()+1, 0).getDate();
+  x.setDate(Math.min(day,last));
+  return x;
+}
+function addYears(d,n){ return addMonths(d, n*12); }
+function sameDay(a,b){ return a&&b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function startOfWeekMon(d){ const dow=d.getDay(); const off=(dow+6)%7; return addDays(d,-off); }
+function endOfWeekSun(d){ return addDays(startOfWeekMon(d), 6); }
+const TODAY = startOfDay(new Date());
+
+const pad = n => String(n).padStart(2,'0');
+const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+function diffDays(a,b){ return Math.round((startOfDay(b) - startOfDay(a))/86400000); }
+
+function ord(n){
+  const s=['th','st','nd','rd'], v=n%100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function monthIndex(token){
+  if (MONTH_ALIASES[token] != null) return MONTH_ALIASES[token];
+  let i = MONTHS_FULL.indexOf(token);
+  if (i >= 0) return i;
+  i = MONTHS_SHORT.indexOf(token);
+  return i;
+}
+
+/* ───────────────────────────── parser ──────────────────────────── */
+
+function parse(input) {
+  if (!input || !input.trim()) return null;
+  const s = normalize(input);
+
+  // Explicit "<month> <d1>-<d2>" range comes first so it's not misread as math.
+  const mdRange = parseMonthDayRange(s);
+  if (mdRange) return { ...mdRange, input };
+
+  // Range connectives.
+  const range = parseRange(s);
+  if (range) return range;
+
+  // Phrase ranges ("this week", "next 7 days", etc.)
+  const phrase = parsePhraseRange(s);
+  if (phrase) return phrase;
+
+  const single = parseSingle(s);
+  if (single) return { start: single, end: single, kind: 'single', input };
+
+  return null;
+}
+
+function parseMonthDayRange(s) {
+  const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  const SEP = '(?:\\s*[-–—]\\s*|\\s+(?:to|through|thru|until|til|–|—)\\s+)';
+  let m;
+  // "may 12 - 19", "may 12 to 19", optionally with year
+  if (m = s.match(new RegExp('^' + MONTH_RE + '\\s+(\\d{1,2})(?:st|nd|rd|th)?' + SEP + '(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+(\\d{2,4}))?$'))) {
+    const mi = monthIndex(m[1]);
+    const d1 = parseInt(m[2]), d2 = parseInt(m[3]);
+    let y = TODAY.getFullYear();
+    if (m[4]) y = m[4].length === 2 ? 2000 + parseInt(m[4]) : parseInt(m[4]);
+    const a = new Date(y, mi, d1), b = new Date(y, mi, d2);
+    if (validParts(a, mi, d1) && validParts(b, mi, d2)) {
+      return { start: a<=b?a:b, end: a<=b?b:a, kind: 'range' };
+    }
+  }
+  // "12 - 19 may", optionally with year
+  if (m = s.match(new RegExp('^(\\d{1,2})(?:st|nd|rd|th)?' + SEP + '(\\d{1,2})(?:st|nd|rd|th)?\\s+' + MONTH_RE + '(?:\\s+(\\d{2,4}))?$'))) {
+    const d1 = parseInt(m[1]), d2 = parseInt(m[2]);
+    const mi = monthIndex(m[3]);
+    let y = TODAY.getFullYear();
+    if (m[4]) y = m[4].length === 2 ? 2000 + parseInt(m[4]) : parseInt(m[4]);
+    const a = new Date(y, mi, d1), b = new Date(y, mi, d2);
+    if (validParts(a, mi, d1) && validParts(b, mi, d2)) {
+      return { start: a<=b?a:b, end: a<=b?b:a, kind: 'range' };
+    }
+  }
+  return null;
+}
+
+function normalize(s){
+  return s
+    .toLowerCase()
+    .replace(/[,!?]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+const RANGE_SEPS = [
+  / through /, / thru /, / til(?:l)? /, / until /, / to /,
+  / -> /, / → /, / – /, / — /, / - /,
+  /\.\.\./, /\.\./,
+];
+
+function parseRange(s) {
+  // "from X to Y", "between X and Y"
+  let m;
+  if (m = s.match(/^from (.+?) (?:to|through|until|til(?:l)?) (.+)$/)) {
+    return rangeFromParts(m[1], m[2], s);
+  }
+  if (m = s.match(/^between (.+?) and (.+)$/)) {
+    return rangeFromParts(m[1], m[2], s);
+  }
+
+  for (const re of RANGE_SEPS) {
+    const idx = s.search(re);
+    if (idx >= 0) {
+      const match = s.match(re)[0];
+      const a = s.slice(0, idx);
+      const b = s.slice(idx + match.length);
+      const r = rangeFromParts(a, b, s);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
+function rangeFromParts(a, b, raw) {
+  const A = parseSingle(a.trim());
+  const B = parseSingle(b.trim());
+  if (!A || !B) return null;
+  const start = A <= B ? A : B;
+  const end = A <= B ? B : A;
+  return { start, end, kind: 'range', input: raw };
+}
+
+function parsePhraseRange(s) {
+  let m;
+
+  // this/next/last weekend
+  if (m = s.match(/^(this |all |next |coming )?weekend$/)) {
+    const which = (m[1]||'').trim();
+    let sat = TODAY;
+    while (sat.getDay() !== 6) sat = addDays(sat, 1);
+    if (which === 'next' && diffDays(TODAY, sat) < 7) sat = addDays(sat, 7);
+    return { start: sat, end: addDays(sat, 1), kind: 'range' };
+  }
+  if (m = s.match(/^(last|past) weekend$/)) {
+    let sat = TODAY;
+    while (sat.getDay() !== 6) sat = addDays(sat, -1);
+    if (diffDays(sat, TODAY) === 0) sat = addDays(sat, -7);
+    if (diffDays(sat, TODAY) < 2) sat = addDays(sat, -7);
+    return { start: sat, end: addDays(sat, 1), kind: 'range' };
+  }
+  if (m = s.match(/^weekend after next$/)) {
+    let sat = TODAY;
+    while (sat.getDay() !== 6) sat = addDays(sat, 1);
+    sat = addDays(sat, 7);
+    return { start: sat, end: addDays(sat, 1), kind: 'range' };
+  }
+
+  // this/next/last week|month|year|quarter   (also `all`=this, `wk`=week)
+  if (m = s.match(/^(this|all|next|last|past|coming)\s+(week|wk|month|year|quarter)$/)) {
+    const dir = m[1] === 'all' ? 'this' : m[1];
+    const unit = m[2] === 'wk' ? 'week' : m[2];
+    const sign = (dir === 'next' || dir === 'coming') ? 1 : (dir === 'last' || dir === 'past' ? -1 : 0);
+    if (unit === 'week') {
+      const start = addDays(startOfWeekMon(TODAY), sign*7);
+      return { start, end: addDays(start, 6), kind: 'range' };
+    }
+    if (unit === 'month') {
+      const ref = addMonths(TODAY, sign);
+      return { start: startOfMonth(ref), end: endOfMonth(ref), kind: 'range' };
+    }
+    if (unit === 'year') {
+      const y = TODAY.getFullYear() + sign;
+      return { start: new Date(y,0,1), end: new Date(y,11,31), kind: 'range' };
+    }
+    if (unit === 'quarter') {
+      const q = Math.floor(TODAY.getMonth()/3) + sign;
+      const y = TODAY.getFullYear() + Math.floor(q/4);
+      const qi = ((q%4)+4)%4;
+      return { start: new Date(y, qi*3, 1), end: new Date(y, qi*3+3, 0), kind: 'range' };
+    }
+  }
+
+  // q1, q2 2026, etc.
+  if (m = s.match(/^q([1-4])(?:\s+(\d{2,4}))?$/)) {
+    const qi = parseInt(m[1]) - 1;
+    let y = TODAY.getFullYear();
+    if (m[2]) y = m[2].length === 2 ? 2000 + parseInt(m[2]) : parseInt(m[2]);
+    return { start: new Date(y, qi*3, 1), end: new Date(y, qi*3+3, 0), kind: 'range' };
+  }
+
+  // h1/h2 (halves)
+  if (m = s.match(/^h([12])(?:\s+(\d{2,4}))?$/)) {
+    const half = parseInt(m[1]);
+    let y = TODAY.getFullYear();
+    if (m[2]) y = m[2].length === 2 ? 2000 + parseInt(m[2]) : parseInt(m[2]);
+    if (half === 1) return { start: new Date(y,0,1), end: new Date(y,5,30), kind: 'range' };
+    return { start: new Date(y,6,1), end: new Date(y,11,31), kind: 'range' };
+  }
+
+  // next N days/weeks/months, past/last N days/weeks/months
+  if (m = s.match(/^(next|coming|last|past)\s+(\d+)\s+(day|days|week|weeks|wk|wks|month|months|year|years)$/)) {
+    const dir = m[1], n = parseInt(m[2]), u = m[3];
+    const forward = (dir === 'next' || dir === 'coming');
+    let start, end;
+    if (u.startsWith('day')) {
+      if (forward) { start = TODAY; end = addDays(TODAY, n - 1); }
+      else { end = TODAY; start = addDays(TODAY, -(n-1)); }
+    } else if (u.startsWith('w')) {
+      if (forward) { start = TODAY; end = addDays(TODAY, n*7 - 1); }
+      else { end = TODAY; start = addDays(TODAY, -(n*7 - 1)); }
+    } else if (u.startsWith('month')) {
+      if (forward) { start = TODAY; end = addDays(addMonths(TODAY, n), -1); }
+      else { end = TODAY; start = addDays(addMonths(TODAY, -n), 1); }
+    } else {
+      if (forward) { start = TODAY; end = addDays(addYears(TODAY, n), -1); }
+      else { end = TODAY; start = addDays(addYears(TODAY, -n), 1); }
+    }
+    return { start, end, kind: 'range' };
+  }
+
+  // entire month: "may", "may 2026", "next april"
+  if (m = s.match(/^(this |next |last )?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(\d{2,4}))?$/)) {
+    const mi = monthIndex(m[2]);
+    let y = TODAY.getFullYear();
+    if (m[3]) y = m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
+    if (m[1]) {
+      const dir = m[1].trim();
+      if (dir === 'next' && mi <= TODAY.getMonth()) y = TODAY.getFullYear() + 1;
+      else if (dir === 'last' && mi >= TODAY.getMonth()) y = TODAY.getFullYear() - 1;
+    }
+    return { start: new Date(y, mi, 1), end: new Date(y, mi+1, 0), kind: 'range' };
+  }
+
+  // year alone: "2027"
+  if (m = s.match(/^(\d{4})$/)) {
+    const y = parseInt(m[1]);
+    if (y >= 1900 && y <= 2200) {
+      return { start: new Date(y,0,1), end: new Date(y,11,31), kind: 'range' };
+    }
+  }
+
+  return null;
+}
+
+function parseSingle(s) {
+  if (!s) return null;
+  let m;
+
+  // pure literals
+  const lit = {
+    today:0, now:0, tdy:0,
+    tomorrow:1, tmrw:1, tmr:1, tmro:1, tmw:1,
+    yesterday:-1, yday:-1, ytd:-1,
+  };
+  if (lit[s] != null) return addDays(TODAY, lit[s]);
+
+  // "the day after tomorrow", "day after tomorrow", "day before yesterday"
+  if (/^(the )?day after tomorrow$/.test(s)) return addDays(TODAY, 2);
+  if (/^(the )?day before yesterday$/.test(s)) return addDays(TODAY, -2);
+
+  // "+N", "-N", "+1w", "-2mo"
+  if (m = s.match(/^([+-])\s*(\d+)\s*(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)?$/)) {
+    const sign = m[1] === '+' ? 1 : -1;
+    const n = parseInt(m[2]);
+    const u = m[3] || 'd';
+    return shiftByUnit(TODAY, sign*n, u);
+  }
+
+  // "in N units", "N units from now/today"
+  if (m = s.match(/^in\s+(\d+)\s+(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)$/)) {
+    return shiftByUnit(TODAY, parseInt(m[1]), m[2]);
+  }
+  if (m = s.match(/^(\d+)\s+(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)\s+(from (?:now|today)|hence|later|ahead)$/)) {
+    return shiftByUnit(TODAY, parseInt(m[1]), m[2]);
+  }
+  if (m = s.match(/^(\d+)\s+(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)\s+ago$/)) {
+    return shiftByUnit(TODAY, -parseInt(m[1]), m[2]);
+  }
+
+  // "2 fridays from now", "3 mondays ago"
+  if (m = s.match(/^(\d+)\s+(sun|sundays|mon|mondays|tue|tues|tuesdays|wed|weds|wednesdays|thu|thurs|thursdays|fri|fridays|sat|saturdays|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+(from (?:now|today)|ahead|later)$/)) {
+    const n = parseInt(m[1]);
+    const wd = WEEKDAYS[m[2].replace(/s$/,'')] ?? WEEKDAYS[m[2]];
+    return nthWeekdayFrom(TODAY, wd, n);
+  }
+  if (m = s.match(/^(\d+)\s+(sun|sundays|mon|mondays|tue|tues|tuesdays|wed|weds|wednesdays|thu|thurs|thursdays|fri|fridays|sat|saturdays|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+ago$/)) {
+    const n = parseInt(m[1]);
+    const wd = WEEKDAYS[m[2].replace(/s$/,'')] ?? WEEKDAYS[m[2]];
+    return nthWeekdayFrom(TODAY, wd, -n);
+  }
+
+  // "next/last/this/coming weekday"
+  if (m = s.match(/^(this|next|last|coming|past)\s+(sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)$/)) {
+    const dir = m[1];
+    const wd = WEEKDAYS[m[2]];
+    return weekdayWith(dir, wd);
+  }
+
+  // bare weekday → next occurrence (or today)
+  if (WEEKDAYS[s] != null) {
+    return weekdayWith('next-or-today', WEEKDAYS[s]);
+  }
+
+  // "nth weekday of [next/last] month", "first monday of march", "last fri of october 2027"
+  if (m = s.match(/^(first|second|third|fourth|fifth|last|final|1st|2nd|3rd|4th|5th|1|2|3|4|5)\s+(sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thurs|thursday|fri|friday|sat|saturday)\s+of\s+(.+)$/)) {
+    const nth = ORDINALS[m[1]];
+    const wd = WEEKDAYS[m[2]];
+    const ofWhat = m[3];
+    const ref = parseMonthRef(ofWhat);
+    if (ref) {
+      return nthWeekdayOfMonth(ref.year, ref.month, wd, nth);
+    }
+  }
+
+  // "start/beginning/end of <ref>"
+  if (m = s.match(/^(start|beginning|end)\s+of\s+(.+)$/)) {
+    const which = m[1];
+    const ref = m[2];
+    return startEndOf(which, ref);
+  }
+  if (s === 'eom' || s === 'end of month') return endOfMonth(TODAY);
+  if (s === 'bom' || s === 'start of month' || s === 'beginning of month') return startOfMonth(TODAY);
+  if (s === 'eoy' || s === 'end of year') return new Date(TODAY.getFullYear(),11,31);
+  if (s === 'boy' || s === 'start of year' || s === 'beginning of year') return new Date(TODAY.getFullYear(),0,1);
+  if (s === 'eow' || s === 'end of week') return endOfWeekSun(TODAY);
+  if (s === 'bow' || s === 'start of week' || s === 'beginning of week') return startOfWeekMon(TODAY);
+
+  // mid/early/late month
+  if (m = s.match(/^(mid|early|late)[- ]?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(\d{2,4}))?$/)) {
+    const which = m[1];
+    const mi = monthIndex(m[2]);
+    let y = TODAY.getFullYear();
+    if (m[3]) y = m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
+    const day = which === 'mid' ? 15 : (which === 'early' ? 5 : 25);
+    return new Date(y, mi, day);
+  }
+
+  // holidays
+  const hol = holiday(s);
+  if (hol) return hol;
+
+  // "N days/weeks before/after X"
+  if (m = s.match(/^(\d+)\s+(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)\s+(before|after|prior to|past)\s+(.+)$/)) {
+    const n = parseInt(m[1]);
+    const u = m[2];
+    const dir = (m[3] === 'before' || m[3] === 'prior to') ? -1 : 1;
+    const anchor = parseSingle(m[4]);
+    if (anchor) return shiftByUnit(anchor, dir*n, u);
+  }
+
+  // "<date> + N units", "<date> - N units", "<date> plus 10", "tomorrow+1w"
+  // Greedy prefix so chained shifts work: "today + 10 days + 1 week"
+  if (m = s.match(/^(.+?)\s*(\+|-|plus|minus)\s*(\d+)\s*(d|day|days|w|wk|wks|week|weeks|mo|month|months|y|yr|yrs|year|years)?$/)) {
+    const dateExpr = m[1].trim();
+    if (dateExpr) {
+      const op = m[2];
+      const sign = (op === '+' || op === 'plus') ? 1 : -1;
+      const n = parseInt(m[3]);
+      const u = m[4] || 'd';
+      const anchor = parseSingle(dateExpr);
+      if (anchor) return shiftByUnit(anchor, sign*n, u);
+    }
+  }
+
+  // ISO: 2026-05-12
+  if (m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)) {
+    const d = new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+    if (validParts(d, parseInt(m[2])-1, parseInt(m[3]))) return d;
+  }
+
+  // slash: 5/12/2026, 5/12, 12/5/26 (assume month/day if first <=12, else day/month)
+  if (m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)) {
+    const a = parseInt(m[1]), b = parseInt(m[2]);
+    let y = m[3] ? (m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3])) : TODAY.getFullYear();
+    let month, day;
+    if (a > 12) { day = a; month = b - 1; }
+    else { month = a - 1; day = b; }
+    const d = new Date(y, month, day);
+    if (validParts(d, month, day)) return d;
+  }
+
+  // dot: 12.5.2026 (EU style, D.M.Y)
+  if (m = s.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/)) {
+    const day = parseInt(m[1]), month = parseInt(m[2]) - 1;
+    let y = m[3] ? (m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3])) : TODAY.getFullYear();
+    const d = new Date(y, month, day);
+    if (validParts(d, month, day)) return d;
+  }
+
+  // "may 12", "may 12th", "may 12 2026", "may 12, 26"
+  if (m = s.match(/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(\d{2,4}))?$/)) {
+    const mi = monthIndex(m[1]);
+    const day = parseInt(m[2]);
+    let y = m[3] ? (m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3])) : TODAY.getFullYear();
+    const d = new Date(y, mi, day);
+    if (validParts(d, mi, day)) return d;
+  }
+
+  // "12 may", "12th may", "12 may 2026", "12 of may"
+  if (m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(\d{2,4}))?$/)) {
+    const day = parseInt(m[1]);
+    const mi = monthIndex(m[2]);
+    let y = m[3] ? (m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3])) : TODAY.getFullYear();
+    const d = new Date(y, mi, day);
+    if (validParts(d, mi, day)) return d;
+  }
+
+  // "month day - day" handled by range parser; bare "12-19" treated as range too if both small
+  return null;
+}
+
+function validParts(d, expectedMonth, expectedDay) {
+  return !isNaN(d) && d.getMonth() === expectedMonth && d.getDate() === expectedDay;
+}
+
+function shiftByUnit(d, n, u) {
+  if (/^d$|^day/.test(u)) return addDays(d, n);
+  if (/^w$|^wk|^week/.test(u)) return addDays(d, n*7);
+  if (/^mo|^month/.test(u)) return addMonths(d, n);
+  if (/^y$|^yr|^year/.test(u)) return addYears(d, n);
+  return null;
+}
+
+function weekdayWith(dir, wd) {
+  const todayDow = TODAY.getDay();
+  if (dir === 'this') {
+    let diff = wd - todayDow;
+    if (diff < 0) diff += 7; // upcoming this week (or today)
+    return addDays(TODAY, diff);
+  }
+  if (dir === 'next') {
+    // next week's occurrence — strictly the one in the following week
+    const thisWeekDate = (() => {
+      let diff = wd - todayDow;
+      if (diff <= 0) diff += 7;
+      return addDays(TODAY, diff);
+    })();
+    // "next monday" is colloquially the upcoming monday for many people;
+    // we go with strict "next week": always at least 7 days away when said on same weekday.
+    let diff = wd - todayDow;
+    if (diff <= 0) diff += 7;
+    diff += 7;
+    return addDays(TODAY, diff - 7); // = upcoming. For "strict next" use diff
+  }
+  if (dir === 'last' || dir === 'past') {
+    let diff = wd - todayDow;
+    if (diff >= 0) diff -= 7;
+    return addDays(TODAY, diff);
+  }
+  if (dir === 'coming' || dir === 'next-or-today') {
+    let diff = wd - todayDow;
+    if (diff < 0) diff += 7;
+    return addDays(TODAY, diff);
+  }
+  return null;
+}
+
+function nthWeekdayFrom(anchor, wd, n) {
+  let d = new Date(anchor);
+  const dir = n >= 0 ? 1 : -1;
+  let steps = Math.abs(n);
+  // first move to the next occurrence in the desired direction
+  do { d = addDays(d, dir); } while (d.getDay() !== wd);
+  steps -= 1;
+  d = addDays(d, dir * 7 * steps);
+  return d;
+}
+
+function nthWeekdayOfMonth(year, month, wd, nth) {
+  if (nth === -1) {
+    const last = new Date(year, month+1, 0);
+    const off = (last.getDay() - wd + 7) % 7;
+    return addDays(last, -off);
+  }
+  const first = new Date(year, month, 1);
+  const off = (wd - first.getDay() + 7) % 7;
+  const day = 1 + off + (nth - 1) * 7;
+  const d = new Date(year, month, day);
+  if (d.getMonth() !== month) return null;
+  return d;
+}
+
+function parseMonthRef(s) {
+  // "march", "march 2027", "next month", "this month", "last month"
+  s = s.trim();
+  let m;
+  if (m = s.match(/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(\d{2,4}))?$/)) {
+    const mi = monthIndex(m[1]);
+    let y = TODAY.getFullYear();
+    if (m[2]) y = m[2].length === 2 ? 2000 + parseInt(m[2]) : parseInt(m[2]);
+    return { year: y, month: mi };
+  }
+  if (s === 'this month') return { year: TODAY.getFullYear(), month: TODAY.getMonth() };
+  if (s === 'next month') { const d = addMonths(TODAY,1); return { year: d.getFullYear(), month: d.getMonth() }; }
+  if (s === 'last month') { const d = addMonths(TODAY,-1); return { year: d.getFullYear(), month: d.getMonth() }; }
+  return null;
+}
+
+function startEndOf(which, ref) {
+  ref = ref.trim();
+  if (ref === 'today') return TODAY;
+  if (/^(this |all )?(week|wk)$/.test(ref)) return which === 'end' ? endOfWeekSun(TODAY) : startOfWeekMon(TODAY);
+  if (/^next (week|wk)$/.test(ref)) return which === 'end' ? endOfWeekSun(addDays(TODAY,7)) : startOfWeekMon(addDays(TODAY,7));
+  if (/^(last|past) (week|wk)$/.test(ref)) return which === 'end' ? endOfWeekSun(addDays(TODAY,-7)) : startOfWeekMon(addDays(TODAY,-7));
+  if (/^(this |all )?month$/.test(ref)) return which === 'end' ? endOfMonth(TODAY) : startOfMonth(TODAY);
+  if (ref === 'next month') { const d = addMonths(TODAY,1); return which === 'end' ? endOfMonth(d) : startOfMonth(d); }
+  if (ref === 'last month' || ref === 'past month') { const d = addMonths(TODAY,-1); return which === 'end' ? endOfMonth(d) : startOfMonth(d); }
+  if (/^(this |all )?year$/.test(ref)) { const y = TODAY.getFullYear(); return which === 'end' ? new Date(y,11,31) : new Date(y,0,1); }
+  if (ref === 'next year') { const y = TODAY.getFullYear()+1; return which === 'end' ? new Date(y,11,31) : new Date(y,0,1); }
+  if (ref === 'last year' || ref === 'past year') { const y = TODAY.getFullYear()-1; return which === 'end' ? new Date(y,11,31) : new Date(y,0,1); }
+  const mr = parseMonthRef(ref);
+  if (mr) return which === 'end' ? new Date(mr.year, mr.month+1, 0) : new Date(mr.year, mr.month, 1);
+  return null;
+}
+
+/* Holidays */
+function holiday(s) {
+  let m;
+  // strip optional year suffix
+  let year = TODAY.getFullYear();
+  const ym = s.match(/^(.+?)\s+(\d{4})$/);
+  if (ym) { year = parseInt(ym[2]); s = ym[1]; }
+
+  switch (s) {
+    case 'christmas': case 'xmas': case 'christmas day':
+      return autoYear(new Date(year,11,25), year);
+    case 'christmas eve': case 'xmas eve':
+      return autoYear(new Date(year,11,24), year);
+    case 'new year': case 'new years': case "new year's": case "new year's day":
+      // default to upcoming new year
+      return autoYearForward(new Date(year,0,1), year);
+    case "new year's eve": case 'new years eve': case 'nye':
+      return autoYear(new Date(year,11,31), year);
+    case 'halloween': case "hallowe'en":
+      return autoYear(new Date(year,9,31), year);
+    case "valentine's day": case 'valentines day': case 'valentines': case "valentine's":
+      return autoYear(new Date(year,1,14), year);
+    case 'april fools': case "april fool's": case "april fools' day":
+      return autoYear(new Date(year,3,1), year);
+    case 'independence day': case 'july 4th': case 'fourth of july': case '4th of july':
+      return autoYear(new Date(year,6,4), year);
+    case 'juneteenth':
+      return autoYear(new Date(year,5,19), year);
+    case 'thanksgiving': case 'thanksgiving day':
+      return autoYear(nthWeekdayOfMonth(year, 10, 4, 4), year); // 4th Thursday of Nov
+    case "mother's day": case 'mothers day':
+      return autoYear(nthWeekdayOfMonth(year, 4, 0, 2), year); // 2nd Sun May
+    case "father's day": case 'fathers day':
+      return autoYear(nthWeekdayOfMonth(year, 5, 0, 3), year); // 3rd Sun June
+    case 'labor day': case 'labour day':
+      return autoYear(nthWeekdayOfMonth(year, 8, 1, 1), year); // 1st Mon Sep
+    case 'memorial day':
+      return autoYear(nthWeekdayOfMonth(year, 4, 1, -1), year); // last Mon May
+    case 'mlk day': case 'martin luther king day':
+      return autoYear(nthWeekdayOfMonth(year, 0, 1, 3), year); // 3rd Mon Jan
+    case 'presidents day': case "president's day":
+      return autoYear(nthWeekdayOfMonth(year, 1, 1, 3), year); // 3rd Mon Feb
+    case 'columbus day': case 'indigenous peoples day': case "indigenous peoples' day":
+      return autoYear(nthWeekdayOfMonth(year, 9, 1, 2), year);
+    case 'veterans day': case "veteran's day":
+      return autoYear(new Date(year,10,11), year);
+    case 'easter': case 'easter sunday':
+      return autoYear(easterDate(year), year);
+    case 'good friday':
+      return autoYear(addDays(easterDate(year), -2), year);
+    case 'pi day':
+      return autoYear(new Date(year,2,14), year);
+  }
+  return null;
+}
+
+function autoYear(d, year) {
+  // If user didn't specify a year and the date already passed this year, use next year
+  if (year === TODAY.getFullYear() && d < TODAY) {
+    return new Date(d.getFullYear()+1, d.getMonth(), d.getDate());
+  }
+  return d;
+}
+function autoYearForward(d, year) {
+  if (year === TODAY.getFullYear() && d < TODAY) {
+    return new Date(d.getFullYear()+1, d.getMonth(), d.getDate());
+  }
+  return d;
+}
+
+function easterDate(y) {
+  const a = y % 19;
+  const b = Math.floor(y / 100);
+  const c = y % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19*a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2*e + 2*i - h - k) % 7;
+  const mo = Math.floor((a + 11*h + 22*l) / 451);
+  const month = Math.floor((h + l - 7*mo + 114) / 31);
+  const day = ((h + l - 7*mo + 114) % 31) + 1;
+  return new Date(y, month-1, day);
+}
+
+/* ────────────────── autocomplete & spell correction ───────────── */
+
+const VOCAB = (() => {
+  const w = new Set([
+    // time literals
+    'today','tomorrow','yesterday','now','tdy','tmrw','tmr','tmro','tmw','yday','ytd',
+    // weekdays
+    'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+    'mon','tue','tues','wed','weds','thu','thur','thurs','fri','sat','sun',
+    // months
+    'january','february','march','april','may','june','july','august','september','october','november','december',
+    'jan','feb','mar','apr','jun','jul','aug','sep','sept','oct','nov','dec',
+    // units
+    'day','days','week','weeks','wk','wks','month','months','year','years','quarter','weekend',
+    // directions / connectives
+    'this','all','next','last','past','coming',
+    'from','between','to','through','thru','until','til','till','before','after','prior','ago','hence','later','ahead','plus','minus','in','of','and',
+    // holidays
+    'christmas','xmas','easter','halloween','thanksgiving','valentines','valentine',"valentine's",
+    'juneteenth','nye','solstice','independence','july','fourth',
+    "mother's","father's",'memorial','labor','labour','veterans','presidents','mlk','pi',
+    // special
+    'weekday','first','second','third','fourth','fifth','final',
+    'start','end','beginning','mid','early','late',
+    'eom','bom','eoy','boy','eow','bow',
+    'q1','q2','q3','q4','h1','h2',
+  ]);
+  return Array.from(w);
+})();
+
+// Hand-picked priority for tie-breaking common-prefix matches.
+const COMMON_RANK = [
+  'today','tomorrow','yesterday','tmrw','yday',
+  'next','last','this','from','to','in','before','after','ago',
+  'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+  'week','month','year','weekend',
+  'christmas','thanksgiving','easter','halloween','valentines',
+  'january','february','march','april','may','june','july','august','september','october','november','december',
+];
+const COMMON_INDEX = Object.fromEntries(COMMON_RANK.map((w,i) => [w,i]));
+
+function suggest(input) {
+  if (!input) return '';
+  const i = input.lastIndexOf(' ');
+  const prefix = input.slice(i + 1).toLowerCase();
+  if (prefix.length < 2) return '';
+  if (!/^[a-z']+$/.test(prefix)) return '';
+  if (VOCAB.includes(prefix)) return '';
+  const cands = VOCAB.filter(w => w.length > prefix.length && w.startsWith(prefix));
+  if (!cands.length) return '';
+  cands.sort((a, b) => {
+    const ra = COMMON_INDEX[a] ?? 999;
+    const rb = COMMON_INDEX[b] ?? 999;
+    if (ra !== rb) return ra - rb;
+    return a.length - b.length;
+  });
+  return cands[0].slice(prefix.length);
+}
+
+function updateGhost() {
+  const q = $('q');
+  const shadow = q.parentElement.querySelector('.shadow');
+  const typed = shadow.querySelector('.typed');
+  const ghost = shadow.querySelector('.ghost');
+  const v = q.value;
+  typed.textContent = v;
+  const atEnd = q.selectionStart === v.length && q.selectionEnd === v.length;
+  ghost.textContent = atEnd ? suggest(v) : '';
+  state.suggestion = ghost.textContent;
+}
+
+function acceptGhost() {
+  if (!state.suggestion) return false;
+  const q = $('q');
+  q.value += state.suggestion;
+  state.suggestion = '';
+  runParse();
+  q.setSelectionRange(q.value.length, q.value.length);
+  return true;
+}
+
+/* Levenshtein with early-exit cap */
+function lev(a, b, cap) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > cap) return cap + 1;
+  const n = a.length, m = b.length;
+  if (!n) return m;
+  if (!m) return n;
+  let prev = new Array(m + 1);
+  let curr = new Array(m + 1);
+  for (let j = 0; j <= m; j++) prev[j] = j;
+  for (let i = 1; i <= n; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= m; j++) {
+      const c = a[i-1] === b[j-1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j-1] + 1, prev[j-1] + c);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > cap) return cap + 1;
+    [prev, curr] = [curr, prev];
+  }
+  return prev[m];
+}
+
+function correctToken(tok) {
+  if (tok.length < 3) return null;
+  if (!/^[a-z']+$/.test(tok)) return null;
+  if (VOCAB.includes(tok)) return null;
+  const cap = tok.length <= 4 ? 1 : (tok.length <= 7 ? 2 : 3);
+  let best = null, bestDist = cap + 1, runnerUp = cap + 1;
+  for (const w of VOCAB) {
+    if (Math.abs(w.length - tok.length) > cap) continue;
+    const d = lev(tok, w, cap);
+    if (d < bestDist) { runnerUp = bestDist; bestDist = d; best = w; }
+    else if (d < runnerUp) { runnerUp = d; }
+  }
+  if (bestDist > cap) return null;
+  // Require the runner-up to be at least 1 step worse — avoids ambiguous flips
+  if (runnerUp - bestDist < 1) return null;
+  return best;
+}
+
+function trySpellCorrect(input) {
+  const tokens = input.toLowerCase().split(/\s+/);
+  let changed = false;
+  const fixed = tokens.map(t => {
+    const c = correctToken(t);
+    if (c && c !== t) { changed = true; return c; }
+    return t;
+  });
+  if (!changed) return null;
+  const candidate = fixed.join(' ');
+  if (parse(candidate)) return candidate;
+  return null;
+}
+
+function acceptCorrection() {
+  if (!state.correction) return;
+  $('q').value = state.correction;
+  state.correction = null;
+  runParse();
+  $('q').focus();
+}
+
+/* ───────────────────────────── rendering ───────────────────────── */
+
+const state = {
+  parsed: null,
+  view: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1),
+};
+
+const $ = id => document.getElementById(id);
+
+const FMT_LONG = new Intl.DateTimeFormat('en-US', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+const FMT_FULL_DOW = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
+const FMT_MONTH = new Intl.DateTimeFormat('en-US', { month: 'long' });
+
+function renderResult() {
+  const r = state.parsed;
+  const result = $('result');
+  result.innerHTML = '';
+
+  const text = $('q').value;
+  if (!text.trim()) {
+    const today = TODAY;
+    result.innerHTML = `
+      <span class="badge warn">empty</span>
+      <span class="when"><span class="dim">try anything — </span><em>today</em>, <em>yday to tmrw</em>, <em>first mon of march</em></span>
+    `;
+    $('isoLine').textContent = '—';
+    return;
+  }
+  if (!r) {
+    if (state.correction) {
+      result.innerHTML = `
+        <span class="badge err">no idea</span>
+        <span class="when"><span class="dim">did you mean</span> <button class="hint-btn" id="acceptHint">${state.correction}</button><span class="dim">?</span></span>
+        <span class="meta">enter ↵</span>
+      `;
+      const btn = document.getElementById('acceptHint');
+      if (btn) btn.addEventListener('click', acceptCorrection);
+    } else {
+      result.innerHTML = `
+        <span class="badge err">no idea</span>
+        <span class="when"><span class="dim">couldn't make sense of that — keep typing</span></span>
+      `;
+    }
+    $('isoLine').textContent = '—';
+    return;
+  }
+
+  if (r.kind === 'single' || sameDay(r.start, r.end)) {
+    const d = r.start;
+    const human = FMT_LONG.format(d);
+    const dist = relPhrase(d);
+    result.innerHTML = `
+      <span class="badge">${FMT_FULL_DOW.format(d).slice(0,3).toUpperCase()}</span>
+      <span class="when">${formatLong(d)}</span>
+      <span class="meta">${dist}</span>
+    `;
+    $('isoLine').textContent = fmtISO(d);
+  } else {
+    const a = r.start, b = r.end;
+    const days = diffDays(a,b) + 1;
+    result.innerHTML = `
+      <span class="badge">RANGE</span>
+      <span class="when">${formatLong(a)} <span class="dim">→</span> ${formatLong(b)}</span>
+      <span class="meta">${days} day${days===1?'':'s'}</span>
+    `;
+    $('isoLine').textContent = `${fmtISO(a)} → ${fmtISO(b)}`;
+  }
+}
+
+function formatLong(d) {
+  const day = d.getDate();
+  const monthName = FMT_MONTH.format(d);
+  const yr = d.getFullYear();
+  const yrTag = yr === TODAY.getFullYear() ? '' : ` <span class="dim">${yr}</span>`;
+  return `<em>${day}</em> ${monthName}${yrTag}`;
+}
+
+function relPhrase(d) {
+  const days = diffDays(TODAY, d);
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow · +1d';
+  if (days === -1) return 'yesterday · −1d';
+  const abs = Math.abs(days);
+  const ago = days < 0;
+  if (abs < 60) {
+    return ago ? `${abs} days ago` : `in ${abs} days`;
+  }
+  if (abs < 365) {
+    const wks = Math.round(abs/7);
+    return ago ? `${wks} weeks ago` : `in ${wks} weeks`;
+  }
+  const mos = Math.round(abs/30);
+  return ago ? `${mos} months ago` : `in ${mos} months`;
+}
+
+function renderCalendar() {
+  const strip = $('strip');
+  strip.innerHTML = '<div class="scroll-cue top">↑ earlier</div><div class="scroll-cue bot">later ↓</div>';
+  strip.className = 'cal-strip';
+
+  const r = state.parsed;
+
+  if (!r) {
+    strip.appendChild(renderMonthPanel(TODAY.getFullYear(), TODAY.getMonth()));
+    return;
+  }
+
+  const startKey = r.start.getFullYear()*12 + r.start.getMonth();
+  const endKey   = r.end.getFullYear()*12 + r.end.getMonth();
+  const diff     = endKey - startKey;
+  const isRange  = r.kind === 'range' && !sameDay(r.start, r.end);
+
+  if (!isRange || diff === 0) {
+    strip.appendChild(renderMonthPanel(r.start.getFullYear(), r.start.getMonth(),
+      isRange ? 'both' : null));
+    return;
+  }
+
+  if (diff === 1) {
+    strip.classList.add('panels-2');
+    strip.appendChild(renderMonthPanel(r.start.getFullYear(), r.start.getMonth(), 'start'));
+    strip.appendChild(renderMonthPanel(r.end.getFullYear(), r.end.getMonth(), 'end'));
+    return;
+  }
+
+  // diff >= 2 — gap in the middle
+  strip.classList.add('panels-gap');
+  strip.appendChild(renderMonthPanel(r.start.getFullYear(), r.start.getMonth(), 'start'));
+  strip.appendChild(renderGap(diff - 1));
+  strip.appendChild(renderMonthPanel(r.end.getFullYear(), r.end.getMonth(), 'end'));
+}
+
+function renderGap(months) {
+  const el = document.createElement('div');
+  el.className = 'gap';
+  el.innerHTML = `
+    <div class="dots">· · ·</div>
+    <div class="n">${months}</div>
+    <div class="lbl">month${months===1?'':'s'} between</div>
+  `;
+  return el;
+}
+
+function renderMonthPanel(year, month, role) {
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+
+  const head = document.createElement('div');
+  head.className = 'panel-head';
+  const monthName = FMT_MONTH.format(new Date(year, month, 1));
+  const yrTag = `<span class="yr">${year}</span>`;
+  let roleTag = '';
+  if (role === 'start') roleTag = '<span class="role start">Start ↓</span>';
+  else if (role === 'end') roleTag = '<span class="role end">↑ End</span>';
+  head.innerHTML = `<span class="title">${monthName} ${yrTag}</span>${roleTag}`;
+  panel.appendChild(head);
+
+  const dow = document.createElement('div');
+  dow.className = 'dow';
+  dow.innerHTML = '<span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>';
+  panel.appendChild(dow);
+
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const start = addDays(first, -startOffset);
+
+  const r = state.parsed;
+  const rs = r ? startOfDay(r.start) : null;
+  const re = r ? startOfDay(r.end) : null;
+  const isRange = r && r.kind === 'range' && !sameDay(r.start, r.end);
+
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(start, i);
+    const outside = d.getMonth() !== month;
+    const isToday = sameDay(d, TODAY);
+    let cls = 'cell';
+    if (outside) cls += ' outside';
+    if (isToday) cls += ' today';
+
+    if (rs && re) {
+      const dt = startOfDay(d).getTime();
+      if (dt >= rs.getTime() && dt <= re.getTime()) {
+        if (isRange) {
+          if (sameDay(d, rs)) cls += ' range-start';
+          if (sameDay(d, re)) cls += ' range-end';
+          if (!sameDay(d, rs) && !sameDay(d, re)) cls += ' in-range';
+        } else {
+          cls += ' selected';
+        }
+      }
+    }
+
+    const btn = document.createElement('button');
+    btn.className = cls;
+    btn.textContent = String(d.getDate());
+    btn.dataset.iso = fmtISO(d);
+    btn.addEventListener('pointerdown', e => onCellDown(e, d, btn));
+    btn.addEventListener('click', () => onCellClick(d));
+    grid.appendChild(btn);
+  }
+
+  panel.appendChild(grid);
+  return panel;
+}
+
+/* ───────────────────────────── drag ────────────────────────────── */
+
+const drag = {
+  active: false, moved: false, which: null,
+  startX: 0, startY: 0,
+  scrollDir: 0, scrollTimer: null,
+};
+
+function onCellDown(e, d, btn) {
+  const isHandle = btn.classList.contains('range-start') || btn.classList.contains('range-end');
+  drag.moved = false;
+  drag.startX = e.clientX;
+  drag.startY = e.clientY;
+  if (isHandle) {
+    e.preventDefault();
+    drag.active = true;
+    drag.which = btn.classList.contains('range-start') ? 'start' : 'end';
+    document.body.classList.add('dragging');
+  } else {
+    drag.active = false;
+  }
+}
+
+function onGlobalMove(e) {
+  if (!drag.active) return;
+  const dx = e.clientX - drag.startX;
+  const dy = e.clientY - drag.startY;
+  if (!drag.moved && (dx*dx + dy*dy) > 9) drag.moved = true;
+  if (!drag.moved) return;
+
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el && el.closest && el.closest('.cell');
+
+  if (cell && cell.dataset.iso) {
+    if (cell.classList.contains('outside')) {
+      // Outside (neighbouring month) cells are direction signals, not instant jumps.
+      // Without this, a single pixel of cursor movement past the last in-month cell
+      // would re-render the panel, exposing more outside cells under the cursor,
+      // and "rush" through months on every subsequent pixel.
+      const cd = new Date(cell.dataset.iso + 'T00:00:00');
+      const ref = drag.which === 'start' ? state.parsed.start : state.parsed.end;
+      setScrollDir(cd > ref ? 1 : -1);
+    } else {
+      cancelScroll();
+      applyDragTo(new Date(cell.dataset.iso + 'T00:00:00'));
+    }
+    return;
+  }
+
+  // Not over any cell — figure out scroll direction from cursor position
+  checkScrollEdge(e);
+}
+
+function setScrollDir(dir) {
+  if (dir !== drag.scrollDir) {
+    cancelScroll();
+    drag.scrollDir = dir;
+    if (dir !== 0) scrollTick(dir, /*first=*/true);
+  }
+  const strip = $('strip');
+  if (!strip) return;
+  if (dir > 0) strip.dataset.scrolling = 'down';
+  else if (dir < 0) strip.dataset.scrolling = 'up';
+  else delete strip.dataset.scrolling;
+}
+
+function checkScrollEdge(e) {
+  const strip = $('strip');
+  if (!strip) return setScrollDir(0);
+  const rect = strip.getBoundingClientRect();
+  const EDGE = 56;
+
+  // Outer edges of the strip
+  if (e.clientY < rect.top + EDGE) return setScrollDir(-1);
+  if (e.clientY > rect.bottom - EDGE) return setScrollDir(1);
+
+  // Crease — cursor inside the gap between panels (or between adjacent panels)
+  const gap = strip.querySelector('.gap');
+  if (gap) {
+    const gr = gap.getBoundingClientRect();
+    if (e.clientY >= gr.top - 8 && e.clientY <= gr.bottom + 8) {
+      return setScrollDir(drag.which === 'start' ? 1 : -1);
+    }
+  } else {
+    const panels = strip.querySelectorAll('.panel');
+    if (panels.length === 2) {
+      const aBot = panels[0].getBoundingClientRect().bottom;
+      const bTop = panels[1].getBoundingClientRect().top;
+      if (e.clientY >= aBot - 10 && e.clientY <= bTop + 10) {
+        return setScrollDir(drag.which === 'start' ? 1 : -1);
+      }
+    }
+  }
+
+  setScrollDir(0);
+}
+
+function scrollTick(dir, first) {
+  if (!drag.active || drag.scrollDir !== dir) return;
+  const r = state.parsed;
+  if (r && drag.which) {
+    const ref = drag.which === 'start' ? r.start : r.end;
+    applyDragTo(addMonths(ref, dir));
+  }
+  drag.scrollTimer = setTimeout(() => scrollTick(dir, false), first ? 220 : 320);
+}
+
+function cancelScroll() {
+  if (drag.scrollTimer) { clearTimeout(drag.scrollTimer); drag.scrollTimer = null; }
+  drag.scrollDir = 0;
+  const strip = $('strip');
+  if (strip) delete strip.dataset.scrolling;
+}
+
+function onGlobalUp() {
+  if (!drag.active) return;
+  cancelScroll();
+  document.body.classList.remove('dragging');
+  if (drag.moved && state.parsed) {
+    const r = state.parsed;
+    $('q').value = fmtRangeForInput(r.start, r.end);
+  }
+  drag.active = false;
+  drag.moved = false;
+}
+
+function applyDragTo(newDate) {
+  const r = state.parsed;
+  if (!r) return;
+  let s = r.start, e = r.end;
+  if (drag.which === 'start') s = newDate; else e = newDate;
+  if (s > e) {
+    [s, e] = [e, s];
+    drag.which = drag.which === 'start' ? 'end' : 'start';
+  }
+  state.parsed = { ...r, start: s, end: e, kind: 'range' };
+  renderResult();
+  renderCalendar();
+}
+
+function onCellClick(d) {
+  if (drag.moved) { drag.moved = false; return; }
+  $('q').value = fmtISO(d);
+  runParse();
+  $('q').focus();
+}
+
+function fmtForInput(d) {
+  const mo = MONTHS_SHORT[d.getMonth()];
+  const yr = d.getFullYear() === TODAY.getFullYear() ? '' : ' ' + d.getFullYear();
+  return `${mo} ${d.getDate()}${yr}`;
+}
+function fmtRangeForInput(a, b) {
+  return `${fmtForInput(a)} to ${fmtForInput(b)}`;
+}
+
+function runParse() {
+  const v = $('q').value;
+  const r = parse(v);
+  state.parsed = r;
+  state.correction = null;
+  if (!r && v.trim()) {
+    state.correction = trySpellCorrect(v);
+  }
+  renderResult();
+  renderCalendar();
+  updateGhost();
+
+  const row = $('inputRow');
+  if (v.trim() && !r) {
+    row.classList.remove('err'); void row.offsetWidth; row.classList.add('err');
+  } else {
+    row.classList.remove('err');
+  }
+}
+
+/* Wiring */
+$('q').addEventListener('input', runParse);
+$('q').addEventListener('keyup', updateGhost);
+$('q').addEventListener('click', updateGhost);
+$('q').addEventListener('keydown', e => {
+  if (e.key === 'Tab' && state.suggestion && !e.shiftKey) {
+    e.preventDefault();
+    acceptGhost();
+    return;
+  }
+  if (e.key === 'ArrowRight' && state.suggestion) {
+    const q = $('q');
+    if (q.selectionStart === q.value.length) {
+      e.preventDefault();
+      acceptGhost();
+      return;
+    }
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (state.correction) { acceptCorrection(); return; }
+    $('q').select();
+  }
+  if (e.key === 'Escape') { $('q').value = ''; runParse(); }
+});
+document.addEventListener('pointermove', onGlobalMove);
+document.addEventListener('pointerup', onGlobalUp);
+document.addEventListener('pointercancel', onGlobalUp);
+
+$('examples').addEventListener('click', e => {
+  const b = e.target.closest('.ex');
+  if (!b) return;
+  $('q').value = b.textContent;
+  runParse();
+  $('q').focus();
+});
+
+// Rotating placeholder
+const placeholders = [
+  'say when — try “yday to tmrw”',
+  'try “next fri” or “first mon of march”',
+  'try “in 3 weeks” or “last 30 days”',
+  'try “may 12 – 19” or “q4 2026”',
+  'try “10 days before xmas”',
+  'try “2 mondays from now”',
+];
+let phI = 0;
+setInterval(() => {
+  if (document.activeElement !== $('q') && !$('q').value) {
+    phI = (phI + 1) % placeholders.length;
+    $('q').placeholder = placeholders[phI];
+  }
+}, 3200);
+
+// init: empty — show prompt
+runParse();
+</script>
+</body>
+</html>
