@@ -1,0 +1,53 @@
+import { addDays, easterDate, nthWeekdayInMonth } from '../../dates.js';
+import type { EvalContext, HolidayDefinition } from '../../types.js';
+import { DateNode } from '../DateNode.js';
+
+/**
+ * A named holiday — fixed-date, nth-weekday, Easter-relative, or solstice/equinox.
+ * If `year` is null the date auto-rolls to the next occurrence (so `christmas`
+ * on Dec 26 resolves to next year's Dec 25).
+ */
+export class Holiday extends DateNode {
+  constructor(
+    public readonly name: string,
+    public readonly def: HolidayDefinition,
+    public readonly year: number | null,
+  ) {
+    super();
+  }
+
+  protected override computeDate(ctx: EvalContext): Date | null {
+    const yr = this.year ?? ctx.today.getFullYear();
+    const d = Holiday.computeIn(this.def, yr, ctx.today);
+    if (!d) return null;
+    if (this.year === null && d < ctx.today) {
+      return Holiday.computeIn(this.def, yr + 1, ctx.today);
+    }
+    return d;
+  }
+
+  static computeIn(def: HolidayDefinition, year: number, today: Date): Date | null {
+    switch (def.type) {
+      case 'fixed':
+        return new Date(year, def.month, def.day);
+      case 'nth':
+        return nthWeekdayInMonth(year, def.month, def.weekday, def.nth);
+      case 'easter':
+        return addDays(easterDate(year), def.offset);
+      case 'solstice': {
+        const summer = new Date(year, 5, 21);
+        const winter = new Date(year, 11, 21);
+        if (today < summer) return summer;
+        if (today < winter) return winter;
+        return new Date(year + 1, 5, 21);
+      }
+      case 'equinox': {
+        const vernal = new Date(year, 2, 20);
+        const autumnal = new Date(year, 8, 22);
+        if (today < vernal) return vernal;
+        if (today < autumnal) return autumnal;
+        return new Date(year + 1, 2, 20);
+      }
+    }
+  }
+}

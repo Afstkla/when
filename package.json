@@ -1,0 +1,48 @@
+{
+  "name": "when-parser",
+  "version": "0.1.0",
+  "description": "A natural-language date parser. Type how you actually think.",
+  "type": "module",
+  "main": "./dist/when.js",
+  "module": "./dist/when.js",
+  "types": "./dist/when.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/when.d.ts",
+      "import": "./dist/when.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.lib.json",
+    "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write",
+    "ci": "npm run typecheck && npm run lint && npm run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@types/node": "^25.7.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^2.1.4"
+  },
+  "keywords": [
+    "date",
+    "parser",
+    "natural-language",
+    "calendar"
+  ],
+  "license": "MIT"
+}
