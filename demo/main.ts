@@ -20,6 +20,7 @@ import {
   English,
   isoFormat,
   isoWeek,
+  makeDate,
   moonClipPath,
   moonName,
   moonPhase,
@@ -447,7 +448,7 @@ function renderMonthPanel(year: number, month: number, role: string | null): HTM
 
   const head = document.createElement('div');
   head.className = 'panel-head';
-  const monthName = fmtMonth.format(new Date(year, month, 1));
+  const monthName = fmtMonth.format(makeDate(year, month, 1));
   const yrTag = `<span class="yr">${year}</span>`;
   let roleTag = '';
   if (role === 'start') roleTag = `<span class="role start">${L.roleStart}</span>`;
@@ -465,7 +466,7 @@ function renderMonthPanel(year: number, month: number, role: string | null): HTM
   const grid = document.createElement('div');
   grid.className = 'grid';
 
-  const first = new Date(year, month, 1);
+  const first = makeDate(year, month, 1);
   const startOffset = (first.getDay() + 6) % 7;
   const start = addDays(first, -startOffset);
 
