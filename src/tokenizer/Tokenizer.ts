@@ -15,6 +15,7 @@
  * itself is language-neutral.
  */
 
+import { makeDate } from '../dates.js';
 import type { Vocabulary } from '../vocabulary/Vocabulary.js';
 import { Token } from './Token.js';
 
@@ -25,7 +26,7 @@ function tryISO(w: string): Date | null {
   const y = Number(m[1]);
   const month = Number(m[2]) - 1;
   const day = Number(m[3]);
-  const d = new Date(y, month, day);
+  const d = makeDate(y, month, day);
   return d.getMonth() === month && d.getDate() === day ? d : null;
 }
 
@@ -52,7 +53,7 @@ function trySlashDate(
     month = a - 1;
     day = b;
   }
-  const d = new Date(y, month, day);
+  const d = makeDate(y, month, day);
   return d.getMonth() === month && d.getDate() === day ? d : null;
 }
 
@@ -62,7 +63,7 @@ function tryDotDate(w: string, todayYear: number): Date | null {
   const day = Number(m[1]);
   const month = Number(m[2]) - 1;
   const y = m[3] === undefined ? todayYear : m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  const d = new Date(y, month, day);
+  const d = makeDate(y, month, day);
   return d.getMonth() === month && d.getDate() === day ? d : null;
 }
 

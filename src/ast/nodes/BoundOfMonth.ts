@@ -1,3 +1,4 @@
+import { makeDate } from '../../dates.js';
 import type { Bound, EvalContext } from '../../types.js';
 import { DateNode } from '../DateNode.js';
 
@@ -12,9 +13,9 @@ export class BoundOfMonth extends DateNode {
   }
 
   protected override computeDate(_ctx: EvalContext): Date | null {
-    if (this.bound === 'end') return new Date(this.year, this.month + 1, 0);
-    if (this.bound === 'start') return new Date(this.year, this.month, 1);
+    if (this.bound === 'end') return makeDate(this.year, this.month + 1, 0);
+    if (this.bound === 'start') return makeDate(this.year, this.month, 1);
     const day = this.bound === 'mid' ? 15 : this.bound === 'early' ? 5 : 25;
-    return new Date(this.year, this.month, day);
+    return makeDate(this.year, this.month, day);
   }
 }

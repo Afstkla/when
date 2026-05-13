@@ -1,4 +1,4 @@
-import { addDays, easterDate, nthWeekdayInMonth } from '../../dates.js';
+import { addDays, easterDate, makeDate, nthWeekdayInMonth } from '../../dates.js';
 import type { EvalContext, HolidayDefinition } from '../../types.js';
 import { DateNode } from '../DateNode.js';
 
@@ -29,24 +29,24 @@ export class Holiday extends DateNode {
   static computeIn(def: HolidayDefinition, year: number, today: Date): Date | null {
     switch (def.type) {
       case 'fixed':
-        return new Date(year, def.month, def.day);
+        return makeDate(year, def.month, def.day);
       case 'nth':
         return nthWeekdayInMonth(year, def.month, def.weekday, def.nth);
       case 'easter':
         return addDays(easterDate(year), def.offset);
       case 'solstice': {
-        const summer = new Date(year, 5, 21);
-        const winter = new Date(year, 11, 21);
+        const summer = makeDate(year, 5, 21);
+        const winter = makeDate(year, 11, 21);
         if (today < summer) return summer;
         if (today < winter) return winter;
-        return new Date(year + 1, 5, 21);
+        return makeDate(year + 1, 5, 21);
       }
       case 'equinox': {
-        const vernal = new Date(year, 2, 20);
-        const autumnal = new Date(year, 8, 22);
+        const vernal = makeDate(year, 2, 20);
+        const autumnal = makeDate(year, 8, 22);
         if (today < vernal) return vernal;
         if (today < autumnal) return autumnal;
-        return new Date(year + 1, 2, 20);
+        return makeDate(year + 1, 2, 20);
       }
     }
   }

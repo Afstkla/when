@@ -1,3 +1,4 @@
+import { makeDate } from '../../dates.js';
 import type { EvalContext, ZodiacDefinition } from '../../types.js';
 import { RangeNode } from '../RangeNode.js';
 
@@ -14,13 +15,13 @@ export class ZodiacRange extends RangeNode {
   protected override computeRange(ctx: EvalContext): readonly [Date, Date] {
     const refYr = this.year ?? ctx.today.getFullYear();
     const z = this.def;
-    const start = new Date(refYr, z.startM, z.startD);
-    const end = z.wraps ? new Date(refYr + 1, z.endM, z.endD) : new Date(refYr, z.endM, z.endD);
+    const start = makeDate(refYr, z.startM, z.startD);
+    const end = z.wraps ? makeDate(refYr + 1, z.endM, z.endD) : makeDate(refYr, z.endM, z.endD);
     if (this.year === null && end < ctx.today) {
       const ny = refYr + 1;
       return [
-        new Date(ny, z.startM, z.startD),
-        z.wraps ? new Date(ny + 1, z.endM, z.endD) : new Date(ny, z.endM, z.endD),
+        makeDate(ny, z.startM, z.startD),
+        z.wraps ? makeDate(ny + 1, z.endM, z.endD) : makeDate(ny, z.endM, z.endD),
       ];
     }
     return [start, end];

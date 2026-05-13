@@ -1,3 +1,4 @@
+import { makeDate } from '../../dates.js';
 import type { EvalContext } from '../../types.js';
 import { DateNode } from '../DateNode.js';
 
@@ -11,7 +12,7 @@ export class MonthDay extends DateNode {
     super();
   }
   protected override computeDate(_ctx: EvalContext): Date | null {
-    const d = new Date(this.year, this.month, this.day);
+    const d = makeDate(this.year, this.month, this.day);
     return d.getMonth() === this.month ? d : null;
   }
 }

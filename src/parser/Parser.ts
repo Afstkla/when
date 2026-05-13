@@ -44,6 +44,7 @@ import {
   YearRange,
   ZodiacRange,
 } from '../ast/index.js';
+import { makeDate } from '../dates.js';
 import type { Token, TokenType } from '../tokenizer/Token.js';
 import { Tokenizer, type TokenizerOptions } from '../tokenizer/Tokenizer.js';
 import type { TimeUnit, WeekdayIndex } from '../types.js';
@@ -71,7 +72,7 @@ function ordValue(t: Token): number {
 
 function validDay(year: number, month: number, day: number): boolean {
   if (day < 1 || day > 31) return false;
-  const last = new Date(year, month + 1, 0).getDate();
+  const last = makeDate(year, month + 1, 0).getDate();
   return day <= last;
 }
 
@@ -320,9 +321,9 @@ export class Parser {
     }
     if (a.spec.type === 'DIR' && b.spec.type === 'MONTH') {
       let y = todayYear;
-      if (a.spec.value.kind === 'next' && b.spec.value <= new Date(todayYear, 0).getMonth())
+      if (a.spec.value.kind === 'next' && b.spec.value <= makeDate(todayYear, 0, 1).getMonth())
         y = todayYear + 1;
-      if (a.spec.value.kind === 'last' && b.spec.value >= new Date(todayYear, 0).getMonth())
+      if (a.spec.value.kind === 'last' && b.spec.value >= makeDate(todayYear, 0, 1).getMonth())
         y = todayYear - 1;
       // Simplified — caller should re-evaluate at runtime. Use a Period-style relative wrapper.
       return new MonthRange(b.spec.value, y);
@@ -506,7 +507,7 @@ export class Parser {
     def: Holiday['def'],
     todayYear: number,
   ): Holiday {
-    const ref = Holiday.computeIn(def, todayYear, new Date(todayYear, 0));
+    const ref = Holiday.computeIn(def, todayYear, makeDate(todayYear, 0, 1));
     if (!ref) return new Holiday(name, def, null);
     const today = new Date();
     let yr = todayYear;

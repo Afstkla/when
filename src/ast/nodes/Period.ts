@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   endOfMonth,
+  makeDate,
   startOfMonth,
   startOfWeekMon,
 } from '../../dates.js';
@@ -40,35 +41,35 @@ export class Period extends AstNode {
       }
       case 'year': {
         const y = yr + sign;
-        return Result.range(new Date(y, 0, 1), new Date(y, 11, 31));
+        return Result.range(makeDate(y, 0, 1), makeDate(y, 11, 31));
       }
       case 'quarter': {
         const qi = Math.floor(today.getMonth() / 3) + sign;
         const y = yr + Math.floor(qi / 4);
         const q = ((qi % 4) + 4) % 4;
-        return Result.range(new Date(y, q * 3, 1), new Date(y, q * 3 + 3, 0));
+        return Result.range(makeDate(y, q * 3, 1), makeDate(y, q * 3 + 3, 0));
       }
       case 'half': {
         const hCurrent = today.getMonth() < 6 ? 0 : 1;
         const hi = hCurrent + sign;
         const y = yr + Math.floor(hi / 2);
         const h = ((hi % 2) + 2) % 2;
-        return Result.range(new Date(y, h * 6, 1), new Date(y, h * 6 + 6, 0));
+        return Result.range(makeDate(y, h * 6, 1), makeDate(y, h * 6 + 6, 0));
       }
       case 'decade': {
         const cur = Math.floor(yr / 10) * 10;
         const target = cur + sign * 10;
-        return Result.range(new Date(target, 0, 1), new Date(target + 9, 11, 31));
+        return Result.range(makeDate(target, 0, 1), makeDate(target + 9, 11, 31));
       }
       case 'century': {
         const cur = Math.floor(yr / 100) * 100;
         const target = cur + sign * 100;
-        return Result.range(new Date(target, 0, 1), new Date(target + 99, 11, 31));
+        return Result.range(makeDate(target, 0, 1), makeDate(target + 99, 11, 31));
       }
       case 'millennium': {
         const cur = Math.floor(yr / 1000) * 1000;
         const target = cur + sign * 1000;
-        return Result.range(new Date(target, 0, 1), new Date(target + 999, 11, 31));
+        return Result.range(makeDate(target, 0, 1), makeDate(target + 999, 11, 31));
       }
       case 'businessDay': {
         if (sign === 0) {

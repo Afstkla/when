@@ -1,4 +1,4 @@
-import { addDays, diffDays, endOfMonth, startOfWeekMon } from '../../dates.js';
+import { addDays, diffDays, endOfMonth, makeDate, startOfWeekMon } from '../../dates.js';
 import { type EvalContext, Result, type TimeUnit, type WhenResult } from '../../types.js';
 import { AstNode } from '../AstNode.js';
 
@@ -56,7 +56,7 @@ export class NthIn extends AstNode {
         const target = start.getMonth() + (m - 1);
         const yr = start.getFullYear() + Math.floor(target / 12);
         const mo = ((target % 12) + 12) % 12;
-        const s = new Date(yr, mo, 1);
+        const s = makeDate(yr, mo, 1);
         return Result.range(s, endOfMonth(s));
       }
       case 'quarter': {
@@ -68,7 +68,7 @@ export class NthIn extends AstNode {
         const target = sq + (q - 1);
         const yr = start.getFullYear() + Math.floor(target / 4);
         const qi = ((target % 4) + 4) % 4;
-        return Result.range(new Date(yr, qi * 3, 1), new Date(yr, qi * 3 + 3, 0));
+        return Result.range(makeDate(yr, qi * 3, 1), makeDate(yr, qi * 3 + 3, 0));
       }
       case 'half': {
         const sh = start.getMonth() < 6 ? 0 : 1;
@@ -79,14 +79,14 @@ export class NthIn extends AstNode {
         const target = sh + (h - 1);
         const yr = start.getFullYear() + Math.floor(target / 2);
         const hi = ((target % 2) + 2) % 2;
-        return Result.range(new Date(yr, hi * 6, 1), new Date(yr, hi * 6 + 6, 0));
+        return Result.range(makeDate(yr, hi * 6, 1), makeDate(yr, hi * 6 + 6, 0));
       }
       case 'year': {
         const total = end.getFullYear() - start.getFullYear() + 1;
         const y = n > 0 ? n : total + n + 1;
         if (y < 1 || y > total) return null;
         const yr = start.getFullYear() + y - 1;
-        return Result.range(new Date(yr, 0, 1), new Date(yr, 11, 31));
+        return Result.range(makeDate(yr, 0, 1), makeDate(yr, 11, 31));
       }
       case 'decade': {
         const sDec = Math.floor(start.getFullYear() / 10) * 10;
@@ -95,7 +95,7 @@ export class NthIn extends AstNode {
         const d = n > 0 ? n : total + n + 1;
         if (d < 1 || d > total) return null;
         const dec = sDec + (d - 1) * 10;
-        return Result.range(new Date(dec, 0, 1), new Date(dec + 9, 11, 31));
+        return Result.range(makeDate(dec, 0, 1), makeDate(dec + 9, 11, 31));
       }
       case 'century': {
         const sC = Math.floor(start.getFullYear() / 100) * 100;
@@ -104,7 +104,7 @@ export class NthIn extends AstNode {
         const c = n > 0 ? n : total + n + 1;
         if (c < 1 || c > total) return null;
         const cent = sC + (c - 1) * 100;
-        return Result.range(new Date(cent, 0, 1), new Date(cent + 99, 11, 31));
+        return Result.range(makeDate(cent, 0, 1), makeDate(cent + 99, 11, 31));
       }
       default:
         return null;

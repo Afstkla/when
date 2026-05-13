@@ -144,6 +144,8 @@ describe('eras', () => {
     // Years 0–99 must not get the legacy two-digit-year mapping to 1900–1999.
     expect(fmt('1st century')).toBe('range 0000-01-01 → 0099-12-31');
     expect(fmt('1st millennium')).toBe('range 0000-01-01 → 0999-12-31');
+    // Nth-weekday inside an early-era container also dodges the 1900 trap.
+    expect(fmt('3rd fri of 1st millennium')).toBe('single 0000-01-21');
   });
 
   it('parses this/next/last decade|century|millennium', () => {

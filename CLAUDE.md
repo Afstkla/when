@@ -32,6 +32,8 @@ string → Tokenizer → Token[] → Parser → AstNode → .evaluate(ctx) → W
 - **No runtime dependencies.** Dev-only (`devDependencies`). Keep it that way.
 - **Strict TypeScript** — `noUncheckedIndexedAccess`, `noImplicitOverride`, etc. No `any` (Biome enforces `noExplicitAny`).
 - **Tests are the contract.** When changing parser behavior, update tests rather than working around them silently. `tests/parser.test.ts` is the English coverage; `tests/dutch.test.ts` is Dutch.
+- **Never call `new Date(year, m, d)` or `Date.UTC(year, m, d)` directly.** JavaScript maps years 0–99 to 1900–1999 (legacy two-digit-year handling), which silently breaks early eras like "1st millennium". Use `makeDate` / `makeUtcDate` from `src/dates.ts` — they write the literal year via `setFullYear`. The only places allowed to start from a raw integer year are these helpers themselves.
+- **AST nodes that have a range, operate on the range.** Don't extract `getFullYear()` + `getMonth()` from `range.start` to rebuild dates from scratch — that bypasses the range abstraction and re-opens the year-0 trap. Iterate `[start, end]` with `addDays` (`NthWeekday` is the canonical example).
 
 ## Commands
 

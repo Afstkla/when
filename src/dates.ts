@@ -5,6 +5,27 @@
 
 export const MS_PER_DAY = 86_400_000;
 
+/**
+ * Build a `Date` for `(year, month, day)`. Unlike the `Date` constructor,
+ * this writes the literal year for 0–99 instead of mapping them to 1900–1999.
+ *
+ * Always prefer this over `new Date(year, m, d)` and `Date.UTC(year, m, d)`
+ * anywhere a literal year integer is the input.
+ */
+export function makeDate(year: number, month: number, day: number): Date {
+  const d = new Date(year, month, day);
+  d.setFullYear(year, month, day);
+  return d;
+}
+
+/** UTC variant of {@link makeDate} — same year-0–99 mitigation. */
+export function makeUtcDate(year: number, month: number, day: number): Date {
+  const d = new Date(0);
+  d.setUTCFullYear(year, month, day);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 export function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -22,7 +43,7 @@ export function addMonths(d: Date, n: number): Date {
   const day = x.getDate();
   x.setDate(1);
   x.setMonth(x.getMonth() + n);
-  const last = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+  const last = makeDate(x.getFullYear(), x.getMonth() + 1, 0).getDate();
   x.setDate(Math.min(day, last));
   return x;
 }
@@ -53,11 +74,11 @@ export function sameDay(a: Date | null | undefined, b: Date | null | undefined):
 }
 
 export function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+  return makeDate(d.getFullYear(), d.getMonth(), 1);
 }
 
 export function endOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return makeDate(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
 export function startOfWeekMon(d: Date): Date {
@@ -83,10 +104,10 @@ export function ordinalSuffix(n: number): string {
 
 /** ISO 8601 week number — week 1 is the one containing Jan 4. */
 export function isoWeek(d: Date): number {
-  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const t = makeUtcDate(d.getFullYear(), d.getMonth(), d.getDate());
   const dow = (t.getUTCDay() + 6) % 7;
   t.setUTCDate(t.getUTCDate() - dow + 3); // shift to Thursday of this week
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  const yearStart = makeUtcDate(t.getUTCFullYear(), 0, 4);
   return (
     1 +
     Math.round(
@@ -97,14 +118,14 @@ export function isoWeek(d: Date): number {
 }
 
 export function weekStartOfYear(year: number, n: number): Date {
-  const jan4 = new Date(year, 0, 4);
+  const jan4 = makeDate(year, 0, 4);
   const dow = (jan4.getDay() + 6) % 7;
   const week1Mon = addDays(jan4, -dow);
   return addDays(week1Mon, (n - 1) * 7);
 }
 
 export function weeksInYear(year: number): 52 | 53 {
-  const jan1Dow = new Date(year, 0, 1).getDay();
+  const jan1Dow = makeDate(year, 0, 1).getDay();
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   if (jan1Dow === 4 || (leap && jan1Dow === 3)) return 53;
   return 52;
@@ -130,7 +151,7 @@ export function easterDate(y: number): Date {
   const mo = Math.floor((a + 11 * h + 22 * l) / 451);
   const month = Math.floor((h + l - 7 * mo + 114) / 31);
   const day = ((h + l - 7 * mo + 114) % 31) + 1;
-  return new Date(y, month - 1, day);
+  return makeDate(y, month - 1, day);
 }
 
 export function nthWeekdayInMonth(
@@ -140,14 +161,14 @@ export function nthWeekdayInMonth(
   nth: number,
 ): Date | null {
   if (nth < 0) {
-    const last = new Date(year, month + 1, 0);
+    const last = makeDate(year, month + 1, 0);
     const off = (last.getDay() - wd + 7) % 7;
     return addDays(last, -off);
   }
-  const first = new Date(year, month, 1);
+  const first = makeDate(year, month, 1);
   const off = (wd - first.getDay() + 7) % 7;
   const day = 1 + off + (nth - 1) * 7;
-  const d = new Date(year, month, day);
+  const d = makeDate(year, month, day);
   if (d.getMonth() !== month) return null;
   return d;
 }
