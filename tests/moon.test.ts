@@ -40,7 +40,11 @@ describe('moonClipPath', () => {
     expect(moonClipPath(0.5, 6)).toBe('inset(0 0 0 0)');
   });
   it('returns a path() for in-between phases', () => {
+    // Quarters (illum exactly 0.5) — fullSide=false branch
     expect(moonClipPath(0.25, 6)).toMatch(/^path\(/);
     expect(moonClipPath(0.75, 6)).toMatch(/^path\(/);
+    // Gibbous (illum > 0.5) — fullSide=true branch for waxing and waning
+    expect(moonClipPath(0.35, 6)).toMatch(/^path\(/);
+    expect(moonClipPath(0.65, 6)).toMatch(/^path\(/);
   });
 });

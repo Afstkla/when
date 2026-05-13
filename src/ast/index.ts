@@ -13,7 +13,6 @@ export { Literal } from './nodes/Literal.js';
 export { MillenniumRange } from './nodes/MillenniumRange.js';
 export { MonthDay } from './nodes/MonthDay.js';
 export { MonthRange } from './nodes/MonthRange.js';
-export { NextWeekday } from './nodes/NextWeekday.js';
 export { NthIn } from './nodes/NthIn.js';
 export { NthWeekday } from './nodes/NthWeekday.js';
 export { NthWeekdayFromNow } from './nodes/NthWeekdayFromNow.js';

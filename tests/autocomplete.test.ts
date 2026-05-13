@@ -21,4 +21,11 @@ describe('Suggester', () => {
   it('completes the last token even with leading content', () => {
     expect(s.suggest('today + 10 thank')).toBe('sgiving');
   });
+
+  it('ranks multi-candidate prefixes by the common-phrase list', () => {
+    // "fr" matches "fri", "friday", "fridays" — the sort comparator must run.
+    expect(s.suggest('fr')).not.toBe('');
+    // "ja" matches "january" only — single-candidate path.
+    expect(s.suggest('ja')).toBe('nuary');
+  });
 });

@@ -39,4 +39,11 @@ describe('ConversationalFormatter', () => {
     );
     expect(html).toContain('<em>');
   });
+
+  it('renders tomorrow / yesterday / future / past prose', () => {
+    expect(fmt.format(Result.single(new Date(2026, 4, 13)))).toMatch(/Tomorrow is a/);
+    expect(fmt.format(Result.single(new Date(2026, 4, 11)))).toMatch(/Yesterday was a/);
+    expect(fmt.format(Result.single(new Date(2026, 5, 12)))).toMatch(/from now/);
+    expect(fmt.format(Result.single(new Date(2026, 3, 12)))).toMatch(/ago/);
+  });
 });

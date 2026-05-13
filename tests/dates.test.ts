@@ -6,6 +6,7 @@ import {
   diffDays,
   easterDate,
   endOfMonth,
+  endOfWeekSun,
   isLeapYear,
   isoFormat,
   isoWeek,
@@ -55,6 +56,16 @@ describe('startOfWeekMon', () => {
     expect(isoFormat(startOfWeekMon(new Date(2026, 4, 12)))).toBe('2026-05-11');
     // Sun 2026-05-17 → Mon 2026-05-11
     expect(isoFormat(startOfWeekMon(new Date(2026, 4, 17)))).toBe('2026-05-11');
+  });
+
+  it('endOfWeekSun snaps to Sunday', () => {
+    expect(isoFormat(endOfWeekSun(new Date(2026, 4, 12)))).toBe('2026-05-17');
+  });
+
+  it('sameDay returns false for null/undefined inputs', () => {
+    expect(sameDay(null, new Date())).toBe(false);
+    expect(sameDay(new Date(), undefined)).toBe(false);
+    expect(sameDay(null, null)).toBe(false);
   });
 });
 

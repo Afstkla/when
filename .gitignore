@@ -4,3 +4,4 @@ dist-demo
 .vite
 *.log
 .DS_Store
+coverage

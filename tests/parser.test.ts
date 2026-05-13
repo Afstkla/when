@@ -257,6 +257,177 @@ describe('article-stripping', () => {
   });
 });
 
+describe('boundaries (start/end/mid/early/late of …)', () => {
+  it('parses "<bound> of <month>" with optional year (BoundOfMonth)', () => {
+    expect(fmt('start of march')).toBe('single 2026-03-01');
+    expect(fmt('end of december')).toBe('single 2026-12-31');
+    expect(fmt('mid june')).toBe('single 2026-06-15');
+    expect(fmt('early may')).toBe('single 2026-05-05');
+    expect(fmt('late november')).toBe('single 2026-11-25');
+    expect(fmt('start of march 2027')).toBe('single 2027-03-01');
+    expect(fmt('end of december 2027')).toBe('single 2027-12-31');
+  });
+
+  it('parses "<bound> of <period>" (BoundOf early/late/mid)', () => {
+    expect(fmt('start of month')).toBe('single 2026-05-01');
+    expect(fmt('end of month')).toBe('single 2026-05-31');
+    expect(fmt('end of year')).toBe('single 2026-12-31');
+    expect(fmt('mid of year')).toBe('single 2026-07-02');
+    expect(fmt('early of year')).toBe('single 2026-02-06');
+    expect(fmt('late of year')).toBe('single 2026-11-25');
+  });
+});
+
+describe('quarters and halves (direct tokens)', () => {
+  it('parses q1..q4 with and without year', () => {
+    expect(fmt('q1 2026')).toBe('range 2026-01-01 → 2026-03-31');
+    expect(fmt('q4 2027')).toBe('range 2027-10-01 → 2027-12-31');
+    expect(fmt('q1')).toBe('range 2026-01-01 → 2026-03-31');
+  });
+
+  it('parses h1/h2 with and without year', () => {
+    expect(fmt('h1 2026')).toBe('range 2026-01-01 → 2026-06-30');
+    expect(fmt('h2 2027')).toBe('range 2027-07-01 → 2027-12-31');
+    expect(fmt('h1')).toBe('range 2026-01-01 → 2026-06-30');
+  });
+});
+
+describe('NthIn for larger units', () => {
+  it('parses Nth quarter/half', () => {
+    expect(fmt('1st quarter of 2027')).toBe('range 2027-01-01 → 2027-03-31');
+    expect(fmt('2nd half of 2027')).toBe('range 2027-07-01 → 2027-12-31');
+  });
+
+  it('parses Nth century inside a millennium', () => {
+    expect(fmt('1st century of 2nd millennium')).toBe('range 1000-01-01 → 1099-12-31');
+  });
+
+  it('returns null for an unsatisfiable Nth', () => {
+    expect(parse('20th friday of october 2027', { today: TODAY })).toBeNull();
+  });
+});
+
+describe('solstice and equinox (next-occurrence semantics)', () => {
+  it('picks the upcoming solstice/equinox from a given today', () => {
+    // From May 12 2026: next solstice = summer (Jun 21), next equinox = autumnal (Sep 22)
+    expect(fmt('solstice')).toBe('single 2026-06-21');
+    expect(fmt('equinox')).toBe('single 2026-09-22');
+  });
+
+  it('rolls solstice across each occurrence', () => {
+    expect(isoFormat(parse('solstice', { today: new Date(2026, 6, 1) })!.start)).toBe('2026-12-21');
+    expect(isoFormat(parse('solstice', { today: new Date(2026, 11, 25) })!.start)).toBe(
+      '2027-06-21',
+    );
+  });
+
+  it('rolls equinox across each occurrence', () => {
+    expect(isoFormat(parse('equinox', { today: new Date(2026, 0, 15) })!.start)).toBe('2026-03-20');
+    expect(isoFormat(parse('equinox', { today: new Date(2026, 10, 1) })!.start)).toBe('2027-03-20');
+  });
+});
+
+describe('shifts on larger units', () => {
+  it('shifts by quarter/half/year/decade/century/millennium', () => {
+    expect(fmt('today + 1 quarter')).toBe('single 2026-08-12');
+    expect(fmt('today + 1 half')).toBe('single 2026-11-12');
+    expect(fmt('today + 1 year')).toBe('single 2027-05-12');
+    expect(fmt('today + 1 decade')).toBe('single 2036-05-12');
+    expect(fmt('today - 1 century')).toBe('single 1926-05-12');
+    expect(fmt('today + 1 millennium')).toBe('single 3026-05-12');
+  });
+});
+
+describe('windows on every unit', () => {
+  it('covers week / month / quarter / half forward and backward', () => {
+    expect(fmt('next 2 weeks')).toBe('range 2026-05-12 → 2026-05-25');
+    expect(fmt('last 3 weeks')).toBe('range 2026-04-22 → 2026-05-12');
+    expect(fmt('next 4 months')).toBe('range 2026-05-12 → 2026-09-11');
+    expect(fmt('last 4 months')).toBe('range 2026-01-13 → 2026-05-12');
+    expect(fmt('last 2 quarters')).toBe('range 2025-11-13 → 2026-05-12');
+    expect(fmt('next 2 halves')).toBe('range 2026-05-12 → 2027-05-11');
+    expect(fmt('last 2 halves')).toBe('range 2025-05-13 → 2026-05-12');
+  });
+});
+
+describe('this/next/last for day and half and millennium', () => {
+  it('parses Period for day / half / millennium', () => {
+    expect(fmt('next day')).toBe('single 2026-05-13');
+    expect(fmt('last day')).toBe('single 2026-05-11');
+    expect(fmt('this half')).toBe('range 2026-01-01 → 2026-06-30');
+    expect(fmt('next half')).toBe('range 2026-07-01 → 2026-12-31');
+    expect(fmt('this millennium')).toBe('range 2000-01-01 → 2999-12-31');
+    expect(fmt('next millennium')).toBe('range 3000-01-01 → 3999-12-31');
+    expect(fmt('last millennium')).toBe('range 1000-01-01 → 1999-12-31');
+  });
+
+  it('rolls "this business day" forward when today is a weekend', () => {
+    // Sat 16 May 2026: skip to Mon 18 May
+    expect(isoFormat(parse('this business day', { today: new Date(2026, 4, 16) })!.start)).toBe(
+      '2026-05-18',
+    );
+  });
+});
+
+describe('zodiac sign roll-forward', () => {
+  it('rolls a past sign into next year', () => {
+    // Aries (Mar 21 – Apr 19) has already passed by May 12 2026.
+    expect(fmt('aries')).toBe('range 2027-03-21 → 2027-04-19');
+  });
+});
+
+describe('weekend "last" on a Sunday today', () => {
+  it('walks back past the same weekend to the prior one', () => {
+    // Today = Sun 17 May 2026; the prior Saturday is 16 May, which is "this"
+    // weekend (still ≤2 days old), so "last weekend" walks one further back.
+    const r = parse('last weekend', { today: new Date(2026, 4, 17) });
+    expect(r).not.toBeNull();
+    expect(isoFormat(r!.start)).toBe('2026-05-09');
+    expect(isoFormat(r!.end)).toBe('2026-05-10');
+  });
+});
+
+describe('slash date with day > 12 in US format', () => {
+  it('treats the first part as the day when it must be', () => {
+    expect(fmt('15/3/2026')).toBe('single 2026-03-15');
+  });
+});
+
+describe('bare-atom parser entries', () => {
+  it('bare month → MonthRange this year', () => {
+    expect(fmt('march')).toBe('range 2026-03-01 → 2026-03-31');
+  });
+  it('bare weekend → this weekend', () => {
+    expect(fmt('weekend')).toBe('range 2026-05-16 → 2026-05-17');
+  });
+  it('BOUND_UNIT shorthands (eom / bom / eoy / boy)', () => {
+    expect(fmt('eom')).toBe('single 2026-05-31');
+    expect(fmt('bom')).toBe('single 2026-05-01');
+    expect(fmt('eoy')).toBe('single 2026-12-31');
+    expect(fmt('boy')).toBe('single 2026-01-01');
+  });
+  it('directional month rolls year (next january → 2027, last december → 2025)', () => {
+    expect(fmt('next january')).toBe('range 2027-01-01 → 2027-01-31');
+    expect(fmt('last december')).toBe('range 2025-12-01 → 2025-12-31');
+  });
+  it('explicit month + day + year forms', () => {
+    expect(fmt('may 12th 2027')).toBe('single 2027-05-12');
+    expect(fmt('12 may 2027')).toBe('single 2027-05-12');
+    expect(fmt('12th may 2027')).toBe('single 2027-05-12');
+    expect(fmt('3rd march')).toBe('single 2026-03-03');
+  });
+  it('quarter/half/month with explicit year', () => {
+    expect(fmt('march 2027')).toBe('range 2027-03-01 → 2027-03-31');
+  });
+});
+
+describe('attached number+unit tokenizer path', () => {
+  it('parses bare "Nu" as NUMBER + UNIT', () => {
+    expect(fmt('5d ago')).toBe('single 2026-05-07');
+    expect(fmt('in 2w')).toBe('single 2026-05-26');
+  });
+});
+
 describe('rejects gibberish', () => {
   it('returns null for unparseable input', () => {
     expect(parse('not a date', { today: TODAY })).toBeNull();

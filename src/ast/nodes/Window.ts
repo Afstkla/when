@@ -72,7 +72,12 @@ export class Window extends RangeNode {
   }
 }
 
-function monthWindow(today: Date, n: number, forward: boolean, monthsPerUnit: number): [Date, Date] {
+function monthWindow(
+  today: Date,
+  n: number,
+  forward: boolean,
+  monthsPerUnit: number,
+): [Date, Date] {
   if (forward) return [today, addDays(addMonths(today, n * monthsPerUnit), -1)];
   return [addDays(addMonths(today, -n * monthsPerUnit), 1), today];
 }

@@ -30,7 +30,6 @@ import {
   MillenniumRange,
   MonthDay,
   MonthRange,
-  NextWeekday,
   NthIn,
   NthWeekday,
   NthWeekdayFromNow,
@@ -239,7 +238,7 @@ export class Parser {
     if (toks.length === 2) {
       const t1 = toks[1];
       if (!t1) return null;
-      return this.parseAtom2(t0, t1, todayYear);
+      return this.parseAtom2(t0, t1, todayYear, today);
     }
     if (toks.length === 3) {
       const t1 = toks[1];
@@ -268,8 +267,6 @@ export class Parser {
         return new Weekday('next-or-today', t.spec.value);
       case 'WEEKEND':
         return new WeekendRange('this');
-      case 'WEEKDAY_LIT':
-        return new NextWeekday();
       case 'YEAR':
         return new YearRange(t.spec.value);
       case 'MONTH':
@@ -287,7 +284,7 @@ export class Parser {
     }
   }
 
-  private parseAtom2(a: Token, b: Token, todayYear: number): AstNode | null {
+  private parseAtom2(a: Token, b: Token, todayYear: number, today?: Date): AstNode | null {
     // Standalone signed offset: "+45", "-7"  →  today ± n days
     if (a.spec.type === 'OP' && b.spec.type === 'NUMBER') {
       return new Shift(new Literal(0), a.spec.value as 1 | -1, b.spec.value, 'day');
@@ -313,11 +310,8 @@ export class Parser {
     if (a.spec.type === 'DIR' && b.spec.type === 'WEEKDAY') {
       return new Weekday(a.spec.value.kind, b.spec.value);
     }
-    if (a.spec.type === 'DIR' && b.spec.type === 'WEEKDAY_LIT') {
-      return new Period(a.spec.value.kind, 'businessDay');
-    }
     if (a.spec.type === 'DIR' && b.spec.type === 'HOLIDAY') {
-      return this.directionalHoliday(a.spec.value.kind, b.spec.value, b.spec.def, todayYear);
+      return this.directionalHoliday(a.spec.value.kind, b.spec.value, b.spec.def, todayYear, today);
     }
     if (a.spec.type === 'DIR' && b.spec.type === 'MONTH') {
       let y = todayYear;
@@ -506,14 +500,15 @@ export class Parser {
     name: string,
     def: Holiday['def'],
     todayYear: number,
+    today?: Date,
   ): Holiday {
-    const ref = Holiday.computeIn(def, todayYear, makeDate(todayYear, 0, 1));
+    const anchor = today ?? makeDate(todayYear, 0, 1);
+    const ref = Holiday.computeIn(def, todayYear, anchor);
     if (!ref) return new Holiday(name, def, null);
-    const today = new Date();
     let yr = todayYear;
-    if (dir === 'this') yr = ref < today ? todayYear + 1 : todayYear;
-    else if (dir === 'next') yr = ref < today ? todayYear + 2 : todayYear + 1;
-    else if (dir === 'last') yr = ref > today ? todayYear - 1 : todayYear;
+    if (dir === 'this') yr = ref < anchor ? todayYear + 1 : todayYear;
+    else if (dir === 'next') yr = ref < anchor ? todayYear + 2 : todayYear + 1;
+    else if (dir === 'last') yr = ref > anchor ? todayYear - 1 : todayYear;
     return new Holiday(name, def, yr);
   }
 }

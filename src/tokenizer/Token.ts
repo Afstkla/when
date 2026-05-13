@@ -16,7 +16,6 @@ export type TokenizerTokenSpec =
   | { type: 'QUARTER'; value: number }
   | { type: 'HALF'; value: number }
   | { type: 'DECADE'; value: number }
-  | { type: 'WEEKDAY_LIT' }
   | { type: 'WORD' };
 
 export type AnyTokenSpec = TokenSpec | TokenizerTokenSpec;
@@ -28,12 +27,4 @@ export class Token {
     public readonly spec: AnyTokenSpec,
     public readonly raw: string,
   ) {}
-
-  get type(): TokenType {
-    return this.spec.type;
-  }
-
-  is<T extends TokenType>(type: T): this is Token & { spec: AnyTokenSpec & { type: T } } {
-    return this.spec.type === type;
-  }
 }
