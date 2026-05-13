@@ -15,8 +15,12 @@
       <span class="prompt">›</span>
       <div class="qbox">
         <div class="shadow" aria-hidden="true"><span class="typed"></span><span class="ghost"></span></div>
-        <input id="q" autocomplete="off" autocapitalize="off" spellcheck="false" 
+        <input id="q" autocomplete="off" autocapitalize="off" spellcheck="false"
                placeholder="say when — try “yday to tmrw” or “next fri”" />
+      </div>
+      <div class="locale-toggle" id="localeToggle" role="tablist" aria-label="language">
+        <button type="button" class="loc-btn" data-locale="en" aria-pressed="true">EN</button>
+        <button type="button" class="loc-btn" data-locale="nl" aria-pressed="false">NL</button>
       </div>
     </div>
 
@@ -25,34 +29,7 @@
 
     <div class="cal-strip" id="strip"></div>
 
-    <div class="examples" id="examples">
-      <button type="button" class="ex">today</button>
-      <button type="button" class="ex">tmrw</button>
-      <button type="button" class="ex">yday to tmrw</button>
-      <button type="button" class="ex">next fri</button>
-      <button type="button" class="ex">in 3 weeks</button>
-      <button type="button" class="ex">2 mondays from now</button>
-      <button type="button" class="ex">last 30 days</button>
-      <button type="button" class="ex">this weekend</button>
-      <button type="button" class="ex">weekend after next</button>
-      <button type="button" class="ex">first mon of march</button>
-      <button type="button" class="ex">end of month</button>
-      <button type="button" class="ex">week 20</button>
-      <button type="button" class="ex">1st week of sept</button>
-      <button type="button" class="ex">3rd day of next week</button>
-      <button type="button" class="ex">q4 2026</button>
-      <button type="button" class="ex">2nd decade of 21st century</button>
-      <button type="button" class="ex">2020s</button>
-      <button type="button" class="ex">christmas</button>
-      <button type="button" class="ex">last christmas</button>
-      <button type="button" class="ex">next thanksgiving</button>
-      <button type="button" class="ex">10 days before xmas</button>
-      <button type="button" class="ex">today + 10 days</button>
-      <button type="button" class="ex">next fri + 3 days</button>
-      <button type="button" class="ex">may 12 – 19</button>
-      <button type="button" class="ex">5/12/26</button>
-      <button type="button" class="ex">+45</button>
-    </div>
+    <div class="examples" id="examples"></div>
 
     <div class="meta-line">
       <span>When · a date parser</span>

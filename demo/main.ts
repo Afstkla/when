@@ -4,12 +4,18 @@
  * handles, and spell-correction chip.
  *
  * No parsing logic lives here; everything semantic is in `src/`.
+ *
+ * Locale switching: the library is already locale-aware (`English`, `Dutch`),
+ * so the demo only needs to wire a small UI table of static strings + example
+ * chips + Intl formatter tags, and rebuild Parser/SpellChecker/Suggester when
+ * the user flips the toggle.
  */
 
 import {
   addDays,
   addMonths,
   ConversationalFormatter,
+  Dutch,
   diffDays,
   English,
   isoFormat,
@@ -23,21 +29,240 @@ import {
   Suggester,
   sameDay,
   startOfDay,
+  type Vocabulary,
   type WhenResult,
 } from '../src/index.js';
 
 const TODAY = startOfDay(new Date());
-
-const parser = new Parser(English);
-const spellChecker = new SpellChecker(English, parser);
-const suggester = new Suggester(English);
-const formatter = new ConversationalFormatter({ today: TODAY, html: true });
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
   if (!el) throw new Error(`#${id} not found`);
   return el as T;
 };
+
+/* ───────── locale config ───────── */
+
+type LocaleId = 'en' | 'nl';
+
+interface LocaleConfig {
+  vocabulary: Vocabulary;
+  intlTag: string;
+  monthsShort: readonly string[];
+  dowHeaders: readonly [string, string, string, string, string, string, string];
+  wkHeader: string;
+  badgeRange: string;
+  badgeEmpty: string;
+  badgeNoIdea: string;
+  roleStart: string;
+  roleEnd: string;
+  scrollUp: string;
+  scrollDown: string;
+  emptyHint: string;
+  couldntMakeSense: string;
+  didYouMean: string;
+  enterHint: string;
+  rangeJoinWord: string;
+  todayWord: string;
+  tomorrowWord: string;
+  yesterdayWord: string;
+  daysAgo: (n: number) => string;
+  daysFrom: (n: number) => string;
+  weeksAgo: (n: number) => string;
+  weeksFrom: (n: number) => string;
+  monthsAgo: (n: number) => string;
+  monthsFrom: (n: number) => string;
+  dayCount: (n: number) => string;
+  monthsBetween: (n: number) => string;
+  examples: readonly string[];
+  placeholders: readonly string[];
+  showProse: boolean;
+}
+
+const LOCALES: Record<LocaleId, LocaleConfig> = {
+  en: {
+    vocabulary: English,
+    intlTag: 'en-US',
+    monthsShort: [
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
+    ],
+    dowHeaders: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    wkHeader: 'wk',
+    badgeRange: 'RANGE',
+    badgeEmpty: 'empty',
+    badgeNoIdea: 'no idea',
+    roleStart: 'Start ↓',
+    roleEnd: '↑ End',
+    scrollUp: '↑ earlier',
+    scrollDown: 'later ↓',
+    emptyHint:
+      '<span class="dim">try anything — </span><em>today</em>, <em>yday to tmrw</em>, <em>first mon of march</em>',
+    couldntMakeSense: '<span class="dim">couldn\'t make sense of that — keep typing</span>',
+    didYouMean: '<span class="dim">did you mean</span>',
+    enterHint: 'enter ↵',
+    rangeJoinWord: 'to',
+    todayWord: 'today',
+    tomorrowWord: 'tomorrow · +1d',
+    yesterdayWord: 'yesterday · −1d',
+    daysAgo: (n) => `${n} days ago`,
+    daysFrom: (n) => `in ${n} days`,
+    weeksAgo: (n) => `${n} weeks ago`,
+    weeksFrom: (n) => `in ${n} weeks`,
+    monthsAgo: (n) => `${n} months ago`,
+    monthsFrom: (n) => `in ${n} months`,
+    dayCount: (n) => `${n} day${n === 1 ? '' : 's'}`,
+    monthsBetween: (n) => `month${n === 1 ? '' : 's'} between`,
+    examples: [
+      'today',
+      'tmrw',
+      'yday to tmrw',
+      'next fri',
+      'in 3 weeks',
+      '2 mondays from now',
+      'last 30 days',
+      'this weekend',
+      'weekend after next',
+      'first mon of march',
+      'end of month',
+      'week 20',
+      '1st week of sept',
+      '3rd day of next week',
+      'q4 2026',
+      '2nd decade of 21st century',
+      '2020s',
+      'christmas',
+      'last christmas',
+      'next thanksgiving',
+      '10 days before xmas',
+      'today + 10 days',
+      'next fri + 3 days',
+      'may 12 – 19',
+      '5/12/26',
+      '+45',
+    ],
+    placeholders: [
+      'say when — try “yday to tmrw”',
+      'try “next fri” or “first mon of march”',
+      'try “in 3 weeks” or “last 30 days”',
+      'try “may 12 – 19” or “q4 2026”',
+      'try “10 days before xmas”',
+      'try “2 mondays from now”',
+      'try “2nd decade of 21st century”',
+    ],
+    showProse: true,
+  },
+  nl: {
+    vocabulary: Dutch,
+    intlTag: 'nl-NL',
+    monthsShort: [
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ],
+    dowHeaders: ['M', 'D', 'W', 'D', 'V', 'Z', 'Z'],
+    wkHeader: 'wk',
+    badgeRange: 'BEREIK',
+    badgeEmpty: 'leeg',
+    badgeNoIdea: 'geen idee',
+    roleStart: 'Begin ↓',
+    roleEnd: '↑ Eind',
+    scrollUp: '↑ eerder',
+    scrollDown: 'later ↓',
+    emptyHint:
+      '<span class="dim">probeer iets — </span><em>vandaag</em>, <em>gisteren tot morgen</em>, <em>eerste maandag van maart</em>',
+    couldntMakeSense: '<span class="dim">snap er niks van — blijf typen</span>',
+    didYouMean: '<span class="dim">bedoelde je</span>',
+    enterHint: 'enter ↵',
+    rangeJoinWord: 'tot',
+    todayWord: 'vandaag',
+    tomorrowWord: 'morgen · +1d',
+    yesterdayWord: 'gisteren · −1d',
+    daysAgo: (n) => `${n} dagen geleden`,
+    daysFrom: (n) => `over ${n} dagen`,
+    weeksAgo: (n) => `${n} weken geleden`,
+    weeksFrom: (n) => `over ${n} weken`,
+    monthsAgo: (n) => `${n} maanden geleden`,
+    monthsFrom: (n) => `over ${n} maanden`,
+    dayCount: (n) => `${n} dag${n === 1 ? '' : 'en'}`,
+    monthsBetween: (n) => `maand${n === 1 ? '' : 'en'} ertussen`,
+    examples: [
+      'vandaag',
+      'morgen',
+      'gisteren tot morgen',
+      'volgende vrijdag',
+      'over 3 weken',
+      'afgelopen 30 dagen',
+      'dit weekend',
+      'eerste maandag van maart',
+      'einde van de maand',
+      'week 20',
+      '1e week van september',
+      '3e dag van volgende week',
+      'q4 2026',
+      '2e decennium van 21e eeuw',
+      '2020s',
+      'kerstmis',
+      'vorige kerst',
+      'koningsdag',
+      'sinterklaas',
+      'pasen',
+      'hemelvaartsdag',
+      '10 dagen voor kerst',
+      'vandaag + 10 dagen',
+      'volgende vrijdag + 3 dagen',
+      'mei 12 t/m 19',
+      '12.5.26',
+      '+45',
+    ],
+    placeholders: [
+      'zeg het maar — probeer “gisteren tot morgen”',
+      'probeer “volgende vrijdag” of “eerste maandag van maart”',
+      'probeer “over 3 weken” of “afgelopen 30 dagen”',
+      'probeer “mei 12 t/m 19” of “q4 2026”',
+      'probeer “10 dagen voor kerst”',
+      'probeer “2e decennium van 21e eeuw”',
+    ],
+    showProse: false,
+  },
+};
+
+function detectInitialLocale(): LocaleId {
+  const stored = localStorage.getItem('when.locale');
+  if (stored === 'en' || stored === 'nl') return stored;
+  const nav = (navigator.language || 'en').toLowerCase();
+  return nav.startsWith('nl') ? 'nl' : 'en';
+}
+
+/* ───────── live state ───────── */
+
+let currentLocale: LocaleId = detectInitialLocale();
+let L = LOCALES[currentLocale];
+let parser = new Parser(L.vocabulary);
+let spellChecker = new SpellChecker(L.vocabulary, parser);
+let suggester = new Suggester(L.vocabulary);
+const formatter = new ConversationalFormatter({ today: TODAY, html: true });
+let fmtFullDow = new Intl.DateTimeFormat(L.intlTag, { weekday: 'long' });
+let fmtMonth = new Intl.DateTimeFormat(L.intlTag, { month: 'long' });
 
 type ParsedState = {
   parsed: WhenResult | null;
@@ -47,33 +272,27 @@ type ParsedState = {
 
 const state: ParsedState = { parsed: null, correction: null, suggestion: '' };
 
-const FMT_FULL_DOW = new Intl.DateTimeFormat('en-US', { weekday: 'long' });
-const FMT_MONTH = new Intl.DateTimeFormat('en-US', { month: 'long' });
-
-function ord(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
-}
-
 function relPhrase(d: Date): string {
   const days = diffDays(TODAY, d);
-  if (days === 0) return 'today';
-  if (days === 1) return 'tomorrow · +1d';
-  if (days === -1) return 'yesterday · −1d';
+  if (days === 0) return L.todayWord;
+  if (days === 1) return L.tomorrowWord;
+  if (days === -1) return L.yesterdayWord;
   const abs = Math.abs(days);
   const ago = days < 0;
-  if (abs < 60) return ago ? `${abs} days ago` : `in ${abs} days`;
-  if (abs < 365)
-    return ago ? `${Math.round(abs / 7)} weeks ago` : `in ${Math.round(abs / 7)} weeks`;
-  return ago ? `${Math.round(abs / 30)} months ago` : `in ${Math.round(abs / 30)} months`;
+  if (abs < 60) return ago ? L.daysAgo(abs) : L.daysFrom(abs);
+  if (abs < 365) {
+    const n = Math.round(abs / 7);
+    return ago ? L.weeksAgo(n) : L.weeksFrom(n);
+  }
+  const n = Math.round(abs / 30);
+  return ago ? L.monthsAgo(n) : L.monthsFrom(n);
 }
 
 /* ───────── parse + render ───────── */
 
 function runParse(): void {
   const v = ($('q') as HTMLInputElement).value;
-  const result = parse(v, { today: TODAY });
+  const result = parse(v, { today: TODAY, vocabulary: L.vocabulary });
   state.parsed = result ? { kind: result.kind, start: result.start, end: result.end } : null;
   state.correction = null;
   if (!state.parsed && v.trim()) {
@@ -102,8 +321,8 @@ function renderResult(): void {
   const text = ($('q') as HTMLInputElement).value;
   if (!text.trim()) {
     result.innerHTML = `
-      <span class="badge warn">empty</span>
-      <span class="when"><span class="dim">try anything — </span><em>today</em>, <em>yday to tmrw</em>, <em>first mon of march</em></span>
+      <span class="badge warn">${L.badgeEmpty}</span>
+      <span class="when">${L.emptyHint}</span>
     `;
     $('isoLine').textContent = '—';
     return;
@@ -111,15 +330,15 @@ function renderResult(): void {
   if (!r) {
     if (state.correction) {
       result.innerHTML = `
-        <span class="badge err">no idea</span>
-        <span class="when"><span class="dim">did you mean</span> <button class="hint-btn" id="acceptHint">${state.correction}</button><span class="dim">?</span></span>
-        <span class="meta">enter ↵</span>
+        <span class="badge err">${L.badgeNoIdea}</span>
+        <span class="when">${L.didYouMean} <button class="hint-btn" id="acceptHint">${state.correction}</button><span class="dim">?</span></span>
+        <span class="meta">${L.enterHint}</span>
       `;
       document.getElementById('acceptHint')?.addEventListener('click', acceptCorrection);
     } else {
       result.innerHTML = `
-        <span class="badge err">no idea</span>
-        <span class="when"><span class="dim">couldn't make sense of that — keep typing</span></span>
+        <span class="badge err">${L.badgeNoIdea}</span>
+        <span class="when">${L.couldntMakeSense}</span>
       `;
     }
     $('isoLine').textContent = '—';
@@ -130,7 +349,7 @@ function renderResult(): void {
     const d = r.start;
     const dist = relPhrase(d);
     result.innerHTML = `
-      <span class="badge">${FMT_FULL_DOW.format(d).slice(0, 3).toUpperCase()}</span>
+      <span class="badge">${fmtFullDow.format(d).slice(0, 3).toUpperCase()}</span>
       <span class="when">${formatLong(d)}</span>
       <span class="meta">${dist}</span>
     `;
@@ -140,9 +359,9 @@ function renderResult(): void {
     const b = r.end;
     const days = diffDays(a, b) + 1;
     result.innerHTML = `
-      <span class="badge">RANGE</span>
+      <span class="badge">${L.badgeRange}</span>
       <span class="when">${formatLong(a)} <span class="dim">→</span> ${formatLong(b)}</span>
-      <span class="meta">${days} day${days === 1 ? '' : 's'}</span>
+      <span class="meta">${L.dayCount(days)}</span>
     `;
     $('isoLine').textContent = `${isoFormat(a)} → ${isoFormat(b)}`;
   }
@@ -150,14 +369,19 @@ function renderResult(): void {
 
 function formatLong(d: Date): string {
   const day = d.getDate();
-  const monthName = FMT_MONTH.format(d);
+  const monthName = fmtMonth.format(d);
   const yr = d.getFullYear();
   const yrTag = yr === TODAY.getFullYear() ? '' : ` <span class="dim">${yr}</span>`;
   return `<em>${day}</em> ${monthName}${yrTag}`;
 }
 
 function renderSentence(): void {
-  $('sentence').innerHTML = formatter.format(state.parsed);
+  const sentence = $('sentence');
+  if (!L.showProse) {
+    sentence.innerHTML = '';
+    return;
+  }
+  sentence.innerHTML = formatter.format(state.parsed);
 }
 
 function acceptCorrection(): void {
@@ -172,8 +396,7 @@ function acceptCorrection(): void {
 
 function renderCalendar(): void {
   const strip = $('strip');
-  strip.innerHTML =
-    '<div class="scroll-cue top">↑ earlier</div><div class="scroll-cue bot">later ↓</div>';
+  strip.innerHTML = `<div class="scroll-cue top">${L.scrollUp}</div><div class="scroll-cue bot">${L.scrollDown}</div>`;
   strip.className = 'cal-strip';
 
   const r = state.parsed;
@@ -213,7 +436,7 @@ function renderGap(months: number): HTMLElement {
   el.innerHTML = `
     <div class="dots">· · ·</div>
     <div class="n">${months}</div>
-    <div class="lbl">month${months === 1 ? '' : 's'} between</div>
+    <div class="lbl">${L.monthsBetween(months)}</div>
   `;
   return el;
 }
@@ -224,18 +447,19 @@ function renderMonthPanel(year: number, month: number, role: string | null): HTM
 
   const head = document.createElement('div');
   head.className = 'panel-head';
-  const monthName = FMT_MONTH.format(new Date(year, month, 1));
+  const monthName = fmtMonth.format(new Date(year, month, 1));
   const yrTag = `<span class="yr">${year}</span>`;
   let roleTag = '';
-  if (role === 'start') roleTag = '<span class="role start">Start ↓</span>';
-  else if (role === 'end') roleTag = '<span class="role end">↑ End</span>';
+  if (role === 'start') roleTag = `<span class="role start">${L.roleStart}</span>`;
+  else if (role === 'end') roleTag = `<span class="role end">${L.roleEnd}</span>`;
   head.innerHTML = `<span class="title">${monthName} ${yrTag}</span>${roleTag}`;
   panel.appendChild(head);
 
   const dow = document.createElement('div');
   dow.className = 'dow';
   dow.innerHTML =
-    '<span class="w-head">wk</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>';
+    `<span class="w-head">${L.wkHeader}</span>` +
+    L.dowHeaders.map((h) => `<span>${h}</span>`).join('');
   panel.appendChild(dow);
 
   const grid = document.createElement('div');
@@ -469,37 +693,24 @@ function onCellClick(d: Date): void {
   $('q').focus();
 }
 
-const MONTHS_SHORT = [
-  'jan',
-  'feb',
-  'mar',
-  'apr',
-  'may',
-  'jun',
-  'jul',
-  'aug',
-  'sep',
-  'oct',
-  'nov',
-  'dec',
-];
-
 function fmtForInput(d: Date): string {
-  const mo = MONTHS_SHORT[d.getMonth()];
+  const mo = L.monthsShort[d.getMonth()];
   const yr = d.getFullYear() === TODAY.getFullYear() ? '' : ` ${d.getFullYear()}`;
   return `${mo} ${d.getDate()}${yr}`;
 }
 function fmtRangeForInput(a: Date, b: Date): string {
-  return `${fmtForInput(a)} to ${fmtForInput(b)}`;
+  return `${fmtForInput(a)} ${L.rangeJoinWord} ${fmtForInput(b)}`;
 }
 
 /* ───────── ghost text autocomplete ───────── */
 
 function updateGhost(): void {
   const q = $('q') as HTMLInputElement;
-  const shadow = q.parentElement!.querySelector('.shadow') as HTMLElement;
-  const typed = shadow.querySelector<HTMLElement>('.typed')!;
-  const ghost = shadow.querySelector<HTMLElement>('.ghost')!;
+  const shadow = q.parentElement?.querySelector('.shadow') as HTMLElement | null;
+  if (!shadow) return;
+  const typed = shadow.querySelector<HTMLElement>('.typed');
+  const ghost = shadow.querySelector<HTMLElement>('.ghost');
+  if (!typed || !ghost) return;
   const v = q.value;
   typed.textContent = v;
   const atEnd = q.selectionStart === v.length && q.selectionEnd === v.length;
@@ -515,6 +726,43 @@ function acceptGhost(): boolean {
   runParse();
   q.setSelectionRange(q.value.length, q.value.length);
   return true;
+}
+
+/* ───────── locale switching ───────── */
+
+function renderExamples(): void {
+  const host = $('examples');
+  host.innerHTML = L.examples
+    .map((s) => `<button type="button" class="ex">${escapeHtml(s)}</button>`)
+    .join('');
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
+  );
+}
+
+function setLocale(loc: LocaleId): void {
+  if (loc === currentLocale) return;
+  currentLocale = loc;
+  L = LOCALES[loc];
+  parser = new Parser(L.vocabulary);
+  spellChecker = new SpellChecker(L.vocabulary, parser);
+  suggester = new Suggester(L.vocabulary);
+  fmtFullDow = new Intl.DateTimeFormat(L.intlTag, { weekday: 'long' });
+  fmtMonth = new Intl.DateTimeFormat(L.intlTag, { month: 'long' });
+  localStorage.setItem('when.locale', loc);
+
+  for (const btn of $('localeToggle').querySelectorAll<HTMLButtonElement>('.loc-btn')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.locale === loc));
+  }
+  renderExamples();
+  // Clear the input — what worked in EN likely won't parse in NL.
+  ($('q') as HTMLInputElement).value = '';
+  placeholderIndex = 0;
+  ($('q') as HTMLInputElement).placeholder = L.placeholders[0] ?? '';
+  runParse();
 }
 
 /* ───────── wiring ───────── */
@@ -562,23 +810,25 @@ $('examples').addEventListener('click', (e) => {
   q.focus();
 });
 
-const placeholders = [
-  'say when — try “yday to tmrw”',
-  'try “next fri” or “first mon of march”',
-  'try “in 3 weeks” or “last 30 days”',
-  'try “may 12 – 19” or “q4 2026”',
-  'try “10 days before xmas”',
-  'try “2 mondays from now”',
-  'try “2nd decade of 21st century”',
-];
-let phI = 0;
+$('localeToggle').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.loc-btn');
+  if (!b?.dataset.locale) return;
+  setLocale(b.dataset.locale as LocaleId);
+});
+
+let placeholderIndex = 0;
 setInterval(() => {
   if (document.activeElement !== q && !q.value) {
-    phI = (phI + 1) % placeholders.length;
-    q.placeholder = placeholders[phI] ?? '';
+    placeholderIndex = (placeholderIndex + 1) % L.placeholders.length;
+    q.placeholder = L.placeholders[placeholderIndex] ?? '';
   }
 }, 3200);
 
-void ord; // (reserved for future result-chip use)
+/* ───────── init ───────── */
 
+for (const btn of $('localeToggle').querySelectorAll<HTMLButtonElement>('.loc-btn')) {
+  btn.setAttribute('aria-pressed', String(btn.dataset.locale === currentLocale));
+}
+q.placeholder = L.placeholders[0] ?? '';
+renderExamples();
 runParse();

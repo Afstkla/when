@@ -41,11 +41,41 @@ body {
 /* Input row */
 .input-row {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: baseline;
   gap: 14px;
   border-bottom: 1px solid var(--ink);
   padding-bottom: 14px;
+}
+.locale-toggle {
+  align-self: center;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+.loc-btn {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.loc-btn:hover {
+  color: var(--ink);
+}
+.loc-btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
 }
 .prompt {
   font-family: "Fraunces", serif;
