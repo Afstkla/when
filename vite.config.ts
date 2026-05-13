@@ -18,8 +18,10 @@ export default defineConfig(({ mode }) => {
   }
 
   // Demo mode: serve `demo/index.html` at the root.
+  // `base` matches the GitHub Pages path (https://afstkla.github.io/when/).
   return {
     root: 'demo',
+    base: mode === 'production' ? '/when/' : '/',
     server: { port: 5173, open: false },
     build: {
       outDir: '../dist-demo',
