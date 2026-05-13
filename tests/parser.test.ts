@@ -141,6 +141,9 @@ describe('eras', () => {
     expect(fmt('1990s')).toBe('range 1990-01-01 → 1999-12-31');
     expect(fmt('21st century')).toBe('range 2000-01-01 → 2099-12-31');
     expect(fmt('3rd millennium')).toBe('range 2000-01-01 → 2999-12-31');
+    // Years 0–99 must not get the legacy two-digit-year mapping to 1900–1999.
+    expect(fmt('1st century')).toBe('range 0000-01-01 → 0099-12-31');
+    expect(fmt('1st millennium')).toBe('range 0000-01-01 → 0999-12-31');
   });
 
   it('parses this/next/last decade|century|millennium', () => {
