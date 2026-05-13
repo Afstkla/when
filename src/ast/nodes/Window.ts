@@ -38,22 +38,25 @@ export class Window extends RangeNode {
         }
         break;
       case 'month':
-        if (forward) {
-          s = today;
-          e = addDays(addMonths(today, n), -1);
-        } else {
-          e = today;
-          s = addDays(addMonths(today, -n), 1);
-        }
+        [s, e] = monthWindow(today, n, forward, 1);
+        break;
+      case 'quarter':
+        [s, e] = monthWindow(today, n, forward, 3);
+        break;
+      case 'half':
+        [s, e] = monthWindow(today, n, forward, 6);
         break;
       case 'year':
-        if (forward) {
-          s = today;
-          e = addDays(addYears(today, n), -1);
-        } else {
-          e = today;
-          s = addDays(addYears(today, -n), 1);
-        }
+        [s, e] = yearWindow(today, n, forward, 1);
+        break;
+      case 'decade':
+        [s, e] = yearWindow(today, n, forward, 10);
+        break;
+      case 'century':
+        [s, e] = yearWindow(today, n, forward, 100);
+        break;
+      case 'millennium':
+        [s, e] = yearWindow(today, n, forward, 1000);
         break;
       case 'businessDay':
         if (forward) {
@@ -64,9 +67,17 @@ export class Window extends RangeNode {
           s = addBusinessDays(today, -(n - 1));
         }
         break;
-      default:
-        return null;
     }
     return [s, e];
   }
+}
+
+function monthWindow(today: Date, n: number, forward: boolean, monthsPerUnit: number): [Date, Date] {
+  if (forward) return [today, addDays(addMonths(today, n * monthsPerUnit), -1)];
+  return [addDays(addMonths(today, -n * monthsPerUnit), 1), today];
+}
+
+function yearWindow(today: Date, n: number, forward: boolean, yearsPerUnit: number): [Date, Date] {
+  if (forward) return [today, addDays(addYears(today, n * yearsPerUnit), -1)];
+  return [addDays(addYears(today, -n * yearsPerUnit), 1), today];
 }

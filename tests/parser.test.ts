@@ -82,6 +82,11 @@ describe('windows', () => {
     expect(fmt('last 30 days')).toBe('range 2026-04-13 → 2026-05-12');
     expect(fmt('next 7 days')).toBe('range 2026-05-12 → 2026-05-18');
     expect(fmt('past 14 days')).toBe('range 2026-04-29 → 2026-05-12');
+    expect(fmt('last 2 years')).toBe('range 2024-05-13 → 2026-05-12');
+    expect(fmt('next 2 quarters')).toBe('range 2026-05-12 → 2026-11-11');
+    expect(fmt('last 3 millennia')).toBe('range -0974-05-13 → 2026-05-12');
+    expect(fmt('next 2 decades')).toBe('range 2026-05-12 → 2046-05-11');
+    expect(fmt('last 2 centuries')).toBe('range 1826-05-13 → 2026-05-12');
   });
 });
 
