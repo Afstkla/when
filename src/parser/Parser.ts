@@ -144,8 +144,7 @@ export class Parser {
 
     // Postfix shift: <anchor> (OP|DASH) NUMBER UNIT?  — rightmost op so chains compose
     for (let i = toks.length - 1; i >= 1; i--) {
-      const t = toks[i];
-      if (!t) continue;
+      const t = toks[i] as Token;
       if (t.spec.type !== 'OP' && t.spec.type !== 'DASH') continue;
       const after = toks.slice(i + 1);
       const first = after[0];
@@ -167,10 +166,9 @@ export class Parser {
 
     // "N unit (before|after|ago|hence|later|ahead) anchor"
     for (let i = 1; i < toks.length; i++) {
-      const tok = toks[i];
-      const t0 = toks[0];
-      const t1 = toks[1];
-      if (!tok || !t0 || !t1) continue;
+      const tok = toks[i] as Token;
+      const t0 = toks[0] as Token;
+      const t1 = toks[1] as Token;
       if (tok.spec.type !== 'RELPREP') continue;
       if (t0.spec.type !== 'NUMBER' || t1.spec.type !== 'UNIT') continue;
       const n = t0.spec.value;
@@ -229,25 +227,26 @@ export class Parser {
 
   private parseAtom(toks: Token[], today?: Date): AstNode | null {
     if (!toks.length) return null;
-    const t0 = toks[0];
-    if (!t0) return null;
+    // toks.length > 0, so toks[0..n-1] are defined; suppress strict-indexed-access.
+    const t0 = toks[0] as Token;
 
     const todayYear = (today ?? new Date()).getFullYear();
 
     if (toks.length === 1) return this.parseAtom1(t0, todayYear);
     if (toks.length === 2) {
-      const t1 = toks[1];
-      if (!t1) return null;
+      const t1 = toks[1] as Token;
       return this.parseAtom2(t0, t1, todayYear, today);
     }
     if (toks.length === 3) {
-      const t1 = toks[1];
-      const t2 = toks[2];
-      if (!t1 || !t2) return null;
+      const t1 = toks[1] as Token;
+      const t2 = toks[2] as Token;
       return this.parseAtom3(t0, t1, t2, todayYear);
     }
     if (toks.length === 4) {
-      const a = this.parseAtom4(toks, today);
+      const t1 = toks[1] as Token;
+      const t2 = toks[2] as Token;
+      const t3 = toks[3] as Token;
+      const a = this.parseAtom4(t0, t1, t2, t3, today);
       if (a) return a;
     }
     return this.parseAtomLong(toks, today);
@@ -438,10 +437,8 @@ export class Parser {
     return null;
   }
 
-  private parseAtom4(toks: Token[], today?: Date): AstNode | null {
+  private parseAtom4(a: Token, b: Token, c: Token, d: Token, today?: Date): AstNode | null {
     const todayYear = (today ?? new Date()).getFullYear();
-    const [a, b, c, d] = toks;
-    if (!a || !b || !c || !d) return null;
     // "first mon of march" / "last fri of october"
     if (isOrdinalLike(a) && b.spec.type === 'WEEKDAY' && ty(c, 'OF') && d.spec.type === 'MONTH') {
       return new NthWeekday(ordValue(a), b.spec.value, new MonthRange(d.spec.value, todayYear));

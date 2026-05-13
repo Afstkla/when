@@ -106,8 +106,31 @@ export class NthIn extends AstNode {
         const cent = sC + (c - 1) * 100;
         return Result.range(makeDate(cent, 0, 1), makeDate(cent + 99, 11, 31));
       }
-      default:
+      case 'millennium': {
+        const sM = Math.floor(start.getFullYear() / 1000) * 1000;
+        const eM = Math.floor(end.getFullYear() / 1000) * 1000;
+        const total = (eM - sM) / 1000 + 1;
+        const m = n > 0 ? n : total + n + 1;
+        if (m < 1 || m > total) return null;
+        const mil = sM + (m - 1) * 1000;
+        return Result.range(makeDate(mil, 0, 1), makeDate(mil + 999, 11, 31));
+      }
+      case 'businessDay': {
+        // Iterate the range and count weekdays; same pattern as NthWeekday.
+        const step = n > 0 ? 1 : -1;
+        const target = Math.abs(n);
+        let count = 0;
+        const inBounds =
+          step > 0
+            ? (d: Date) => d.getTime() <= end.getTime()
+            : (d: Date) => d.getTime() >= start.getTime();
+        for (let d = step > 0 ? start : end; inBounds(d); d = addDays(d, step)) {
+          const dow = d.getDay();
+          if (dow === 0 || dow === 6) continue;
+          if (++count === target) return Result.single(d);
+        }
         return null;
+      }
     }
   }
 }

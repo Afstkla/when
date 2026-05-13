@@ -18,10 +18,11 @@ export function levenshtein(a: string, b: string, cap: number): number {
     curr[0] = i;
     let rowMin = i;
     for (let j = 1; j <= m; j++) {
+      // Indices are in-bounds by the loop conditions; suppress strict-indexed-access.
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      const ins = (prev[j] ?? 0) + 1;
-      const del = (curr[j - 1] ?? 0) + 1;
-      const sub = (prev[j - 1] ?? 0) + cost;
+      const ins = (prev[j] as number) + 1;
+      const del = (curr[j - 1] as number) + 1;
+      const sub = (prev[j - 1] as number) + cost;
       const val = Math.min(ins, del, sub);
       curr[j] = val;
       if (val < rowMin) rowMin = val;
@@ -29,5 +30,5 @@ export function levenshtein(a: string, b: string, cap: number): number {
     if (rowMin > cap) return cap + 1;
     [prev, curr] = [curr, prev];
   }
-  return prev[m] ?? 0;
+  return prev[m] as number;
 }

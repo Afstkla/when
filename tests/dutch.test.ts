@@ -40,6 +40,10 @@ describe('Dutch weekdays + months', () => {
   it('parses EU dot date', () => {
     expect(fmt('12.5.2026')).toBe('single 2026-05-12');
   });
+
+  it('parses EU slash date (day first)', () => {
+    expect(fmt('12/5/2026')).toBe('single 2026-05-12');
+  });
 });
 
 describe('Dutch periods', () => {

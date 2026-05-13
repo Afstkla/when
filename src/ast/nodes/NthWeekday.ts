@@ -21,7 +21,7 @@ export class NthWeekday extends DateNode {
 
   protected override computeDate(ctx: EvalContext): Date | null {
     const ref = this.container.evaluate(ctx);
-    if (!ref || this.nth === 0) return null;
+    if (!ref) return null;
     const target = Math.abs(this.nth);
     const step = this.nth > 0 ? 1 : -1;
     const cmp =

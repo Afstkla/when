@@ -28,4 +28,10 @@ describe('Suggester', () => {
     // "ja" matches "january" only — single-candidate path.
     expect(s.suggest('ja')).toBe('nuary');
   });
+
+  it('returns empty for empty / non-alpha / unmatched input', () => {
+    expect(s.suggest('')).toBe('');
+    expect(s.suggest('a1b')).toBe('');
+    expect(s.suggest('xyzz')).toBe('');
+  });
 });

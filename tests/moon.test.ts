@@ -19,6 +19,13 @@ describe('moonPhase', () => {
     const p2 = moonPhase(new Date(d.getTime() + 29.530_588_67 * 86_400_000));
     expect(Math.abs(p1 - p2)).toBeLessThan(0.01);
   });
+
+  it('handles dates before the anchor (negative modulo branch)', () => {
+    // Pre-Jan-6-2000 — triggers the `if (p < 0) p += 1` branch
+    const p = moonPhase(new Date(1995, 0, 1));
+    expect(p).toBeGreaterThanOrEqual(0);
+    expect(p).toBeLessThan(1);
+  });
 });
 
 describe('moonName', () => {
@@ -46,5 +53,7 @@ describe('moonClipPath', () => {
     // Gibbous (illum > 0.5) — fullSide=true branch for waxing and waning
     expect(moonClipPath(0.35, 6)).toMatch(/^path\(/);
     expect(moonClipPath(0.65, 6)).toMatch(/^path\(/);
+    // Waning crescent (illum well below 0.5) — fullSide=false branch for waning
+    expect(moonClipPath(0.85, 6)).toMatch(/^path\(/);
   });
 });

@@ -15,6 +15,10 @@ describe('levenshtein', () => {
   it('respects the cap with early exit', () => {
     expect(levenshtein('abcdefg', 'qrstuvw', 2)).toBe(3);
   });
+
+  it('bails when length diff exceeds cap', () => {
+    expect(levenshtein('a', 'abcdefg', 1)).toBe(2);
+  });
 });
 
 describe('SpellChecker', () => {
@@ -34,5 +38,22 @@ describe('SpellChecker', () => {
 
   it('returns null when no correction produces a parseable phrase', () => {
     expect(checker.suggest('xyzpdq')).toBeNull();
+  });
+
+  it('skips tokens shorter than 3 chars and non-alpha tokens', () => {
+    expect(checker.suggest('ag 12 zz')).toBeNull();
+    // 3+ chars but contains digit — fails the alpha regex on line 46
+    expect(checker.suggest('a1b')).toBeNull();
+  });
+
+  it('rejects ambiguous corrections with similar runner-up', () => {
+    // "mat" is dist 1 from at least may/sat/mar — runner-up ties best.
+    expect(checker.suggest('mat')).toBeNull();
+  });
+
+  it('returns null when the corrected phrase still does not parse', () => {
+    // "thnaksgiving" corrects to "thanksgiving"; "qz" is too short to correct;
+    // "thanksgiving qz" doesn't parse as a date.
+    expect(checker.suggest('thnaksgiving qz')).toBeNull();
   });
 });

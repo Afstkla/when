@@ -37,6 +37,11 @@ describe('weekdays', () => {
     expect(fmt('last mon')).toBe('single 2026-05-11');
     expect(fmt('this thursday')).toBe('single 2026-05-14');
     expect(fmt('coming sat')).toBe('single 2026-05-16');
+    // "this monday": today is Tue, so monday is "earlier this week"; semantics
+    // round forward to next monday (diff < 0 → diff += 7).
+    expect(fmt('this monday')).toBe('single 2026-05-18');
+    // "last tuesday": today IS tuesday (diff = 0); semantics round back 7 days.
+    expect(fmt('last tuesday')).toBe('single 2026-05-05');
   });
 
   it('parses "N weekdays from now / ago"', () => {
@@ -184,6 +189,13 @@ describe('holidays', () => {
   it('parses holiday + year', () => {
     expect(fmt('christmas 2023')).toBe('single 2023-12-25');
   });
+
+  it('directional past holidays — covers ref < anchor branches', () => {
+    // valentine's day 2026 (Feb 14) is past on May 12 2026
+    expect(fmt('this valentines day')).toBe('single 2027-02-14');
+    expect(fmt('next valentines day')).toBe('single 2028-02-14');
+    expect(fmt('last easter')).toBe('single 2026-04-05');
+  });
 });
 
 describe('zodiac signs', () => {
@@ -305,6 +317,21 @@ describe('NthIn for larger units', () => {
   it('returns null for an unsatisfiable Nth', () => {
     expect(parse('20th friday of october 2027', { today: TODAY })).toBeNull();
   });
+
+  it('parses Nth business day inside a container', () => {
+    // Jan 1 2027 = Fri (a business day); count: Fri(1), Mon(2), Tue(3), Wed(4), Thu(5)
+    expect(fmt('1st business day of 2027')).toBe('single 2027-01-01');
+    expect(fmt('5th business day of 2027')).toBe('single 2027-01-07');
+    expect(fmt('last business day of 2027')).toBe('single 2027-12-31');
+  });
+
+  it('returns null when N exceeds business-day count in the container', () => {
+    expect(parse('100th business day of january 2027', { today: TODAY })).toBeNull();
+  });
+
+  it('parses Nth millennium inside a millennium container (degenerate but consistent)', () => {
+    expect(fmt('1st millennium of 4th millennium')).toBe('range 3000-01-01 → 3999-12-31');
+  });
 });
 
 describe('solstice and equinox (next-occurrence semantics)', () => {
@@ -361,11 +388,22 @@ describe('this/next/last for day and half and millennium', () => {
     expect(fmt('last millennium')).toBe('range 1000-01-01 → 1999-12-31');
   });
 
+  it('"this business day" returns today when today is a weekday', () => {
+    expect(fmt('this business day')).toBe('single 2026-05-12');
+  });
+
   it('rolls "this business day" forward when today is a weekend', () => {
     // Sat 16 May 2026: skip to Mon 18 May
     expect(isoFormat(parse('this business day', { today: new Date(2026, 4, 16) })!.start)).toBe(
       '2026-05-18',
     );
+  });
+
+  it('half period anchors to H2 when today is in the second half', () => {
+    // Today Oct 1 2026 → in H2 (Jul-Dec)
+    const r = parse('this half', { today: new Date(2026, 9, 1) });
+    expect(isoFormat(r!.start)).toBe('2026-07-01');
+    expect(isoFormat(r!.end)).toBe('2026-12-31');
   });
 });
 
@@ -390,6 +428,47 @@ describe('weekend "last" on a Sunday today', () => {
 describe('slash date with day > 12 in US format', () => {
   it('treats the first part as the day when it must be', () => {
     expect(fmt('15/3/2026')).toBe('single 2026-03-15');
+  });
+});
+
+describe('invalid month-day combinations', () => {
+  it('rejects month + day where day > 31', () => {
+    expect(parse('may 35', { today: TODAY })).toBeNull();
+    expect(parse('35 may', { today: TODAY })).toBeNull();
+  });
+
+  it('rejects numeric dates that roll over', () => {
+    // Constructor rolls over (Feb 30 → Mar 2) — tokenizer returns null,
+    // so the whole input fails to parse.
+    expect(parse('2026-02-30', { today: TODAY })).toBeNull();
+    expect(parse('5/35/2026', { today: TODAY })).toBeNull();
+    expect(parse('12.35.2026', { today: TODAY })).toBeNull();
+  });
+});
+
+describe('parser fall-throughs and rare patterns', () => {
+  it('"from X" with no connector falls through', () => {
+    expect(parse('from monday', { today: TODAY })).toBeNull();
+  });
+  it('"between X" with no "and" falls through', () => {
+    expect(parse('between monday', { today: TODAY })).toBeNull();
+  });
+  it('continues past mid-sentence relpep', () => {
+    expect(parse('5 days ago foo', { today: TODAY })).toBeNull();
+  });
+  it('parses "UNIT NUMBER YEAR" and "ORD UNIT YEAR"', () => {
+    expect(fmt('week 20 2027')).toBe('range 2027-05-10 → 2027-05-16');
+    expect(fmt('3rd month 2027')).toBe('range 2027-03-01 → 2027-03-31');
+  });
+  it('parses "<bound> <month> <year>"', () => {
+    expect(fmt('early may 2027')).toBe('single 2027-05-05');
+    expect(fmt('late november 2030')).toBe('single 2030-11-25');
+  });
+  it('parses "Nth UNIT of UNIT" (period-shaped container)', () => {
+    expect(fmt('1st week of month')).toBe('range 2026-04-27 → 2026-05-03');
+  });
+  it('falls through parseAtomLong when inner container fails to parse', () => {
+    expect(parse('1st mon of bar', { today: TODAY })).toBeNull();
   });
 });
 

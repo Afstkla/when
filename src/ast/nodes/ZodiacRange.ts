@@ -17,12 +17,10 @@ export class ZodiacRange extends RangeNode {
     const z = this.def;
     const start = makeDate(refYr, z.startM, z.startD);
     const end = z.wraps ? makeDate(refYr + 1, z.endM, z.endD) : makeDate(refYr, z.endM, z.endD);
-    if (this.year === null && end < ctx.today) {
-      const ny = refYr + 1;
-      return [
-        makeDate(ny, z.startM, z.startD),
-        z.wraps ? makeDate(ny + 1, z.endM, z.endD) : makeDate(ny, z.endM, z.endD),
-      ];
+    // Roll forward only applies to non-wrapping signs. For wrapping ones
+    // (Capricorn) `end` is always next year's Jan 19, which can't be < today.
+    if (this.year === null && !z.wraps && end < ctx.today) {
+      return [makeDate(refYr + 1, z.startM, z.startD), makeDate(refYr + 1, z.endM, z.endD)];
     }
     return [start, end];
   }

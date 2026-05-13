@@ -42,8 +42,7 @@ export class Suggester {
       if (ra !== rb) return ra - rb;
       return a.length - b.length;
     });
-    const first = candidates[0];
-    return first ? first.slice(prefix.length) : '';
+    return (candidates[0] as string).slice(prefix.length);
   }
 }
 

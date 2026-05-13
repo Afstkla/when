@@ -22,7 +22,7 @@ import { Token } from './Token.js';
 /** Result of `parseDate` calls — keeps the tokenizer self-contained. */
 function tryISO(w: string): Date | null {
   const m = w.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (!m || m[1] === undefined || m[2] === undefined || m[3] === undefined) return null;
+  if (!m) return null;
   const y = Number(m[1]);
   const month = Number(m[2]) - 1;
   const day = Number(m[3]);
@@ -36,7 +36,7 @@ function trySlashDate(
   todayYear: number,
 ): Date | null {
   const m = w.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
-  if (!m || m[1] === undefined || m[2] === undefined) return null;
+  if (!m) return null;
   const a = Number(m[1]);
   const b = Number(m[2]);
   const y = m[3] === undefined ? todayYear : m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
@@ -59,7 +59,7 @@ function trySlashDate(
 
 function tryDotDate(w: string, todayYear: number): Date | null {
   const m = w.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/);
-  if (!m || m[1] === undefined || m[2] === undefined) return null;
+  if (!m) return null;
   const day = Number(m[1]);
   const month = Number(m[2]) - 1;
   const y = m[3] === undefined ? todayYear : m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
@@ -139,11 +139,8 @@ export class Tokenizer {
       if (matched) continue;
 
       // Single-word fallback (numbers, dates, sentinels).
-      const word = words[i];
-      if (word === undefined) {
-        i++;
-        continue;
-      }
+      // `i < words.length` by the while condition, so words[i] is defined.
+      const word = words[i] as string;
       const single = this.classifySingle(word, todayYear);
       if (Array.isArray(single)) tokens.push(...single);
       else if (single) tokens.push(single);
@@ -185,8 +182,8 @@ export class Tokenizer {
       const sign = m[1] === '+' ? 1 : -1;
       const num = Number(m[2]);
       const tokens: Token[] = [
-        new Token({ type: 'OP', value: sign as 1 | -1 }, m[1] ?? ''),
-        new Token({ type: 'NUMBER', value: num }, m[2] ?? ''),
+        new Token({ type: 'OP', value: sign as 1 | -1 }, m[1] as string),
+        new Token({ type: 'NUMBER', value: num }, m[2] as string),
       ];
       if (m[3] !== undefined) {
         const unitSpec = this.vocabulary.phrases.get(m[3]);
@@ -198,11 +195,11 @@ export class Tokenizer {
 
     // Attached number+unit: "5d", "10w", "3mo" (but not ordinals like "5th")
     if (!/(st|nd|rd|th)$/.test(w) && (m = w.match(/^(\d+)([a-z]+)$/))) {
-      const unitSpec = this.vocabulary.phrases.get(m[2] ?? '');
+      const unitSpec = this.vocabulary.phrases.get(m[2] as string);
       if (unitSpec && unitSpec.type === 'UNIT') {
         return [
-          new Token({ type: 'NUMBER', value: Number(m[1]) }, m[1] ?? ''),
-          new Token(unitSpec, m[2] ?? ''),
+          new Token({ type: 'NUMBER', value: Number(m[1]) }, m[1] as string),
+          new Token(unitSpec, m[2] as string),
         ];
       }
     }
