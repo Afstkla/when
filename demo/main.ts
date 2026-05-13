@@ -578,13 +578,13 @@ function onGlobalMove(e: PointerEvent): void {
   const cell = el?.closest<HTMLElement>('.cell');
   if (cell?.dataset.iso) {
     if (cell.classList.contains('outside')) {
-      const cd = new Date(`${cell.dataset.iso}T00:00:00`);
+      const cd = parseIsoCellDate(cell.dataset.iso);
       const ref = drag.which === 'start' ? state.parsed?.start : state.parsed?.end;
       if (!ref) return;
       setScrollDir(cd > ref ? 1 : -1);
     } else {
       cancelScroll();
-      applyDragTo(new Date(`${cell.dataset.iso}T00:00:00`));
+      applyDragTo(parseIsoCellDate(cell.dataset.iso));
     }
     return;
   }
@@ -692,6 +692,11 @@ function onCellClick(d: Date): void {
   ($('q') as HTMLInputElement).value = isoFormat(d);
   runParse();
   $('q').focus();
+}
+
+function parseIsoCellDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return makeDate(y ?? 0, (m ?? 1) - 1, d ?? 1);
 }
 
 function fmtForInput(d: Date): string {
